@@ -1,44 +1,88 @@
+// src/controllers/patient/AppointmentController.js
+
 import { supabase } from '../../api/supabase';
 import { AppointmentService } from '../../services/patient/AppointmentService';
 
 export class AppointmentController {
+  /**
+   * TẢI DANH SÁCH LỊCH HẸN CỦA BỆNH NHÂN
+   * @param {Function} setAppointments - React state setter
+   * @param {Function} setLoading
+   * @param {Function} setError
+   */
   static async loadAppointments(setAppointments, setLoading, setError) {
-    try {
-      if (!setAppointments || !setLoading || !setError) {
-        throw new Error('Các hàm callback không hợp lệ.');
-      }
+    // BẮT BUỘC PHẢI CÓ HÀM SETTER → TRÁNH LỖI "callback không hợp lệ"
+    if (typeof setAppointments !== 'function' || 
+        typeof setLoading !== 'function' || 
+        typeof setError !== 'function') {
+      console.error('Lỗi: Các hàm callback phải là function hợp lệ!');
+      return;
+    }
 
+    try {
       setLoading(true);
       setError(null);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Người dùng chưa đăng nhập.');
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error('Vui lòng đăng nhập lại.');
+      }
 
       const appointments = await AppointmentService.fetchAppointmentsByUser(user.id);
-      setAppointments(appointments);
+
+      // Cập nhật state an toàn
+      setAppointments(appointments || []);
+
     } catch (error) {
       console.error('Error in loadAppointments:', error);
-      setError(error.message || 'Có lỗi xảy ra khi tải lịch hẹn.');
+      setError(error.message || 'Không thể tải lịch hẹn. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
   }
 
-  static async cancelAppointment(appointmentId, setAppointments, setError, cancelledBy = 'patient', reason = null) {
-    try {
-      if (!appointmentId || !setAppointments || !setError) {
-        throw new Error('Dữ liệu không hợp lệ.');
-      }
+  /**
+   * HỦY LỊCH HẸN
+   */
+  static async cancelAppointment(
+    appointmentId,
+    setAppointments,
+    setError,
+    cancelledBy = 'patient',
+    reason = null
+  ) {
+    if (!appointmentId || typeof setAppointments !== 'function' || typeof setError !== 'function') {
+      setError('Dữ liệu không hợp lệ.');
+      return { success: false, message: 'Thiếu thông tin để hủy lịch.' };
+    }
 
-      const updatedAppointment = await AppointmentService.cancelAppointment(appointmentId, cancelledBy, reason);
-      setAppointments(prev => 
-        prev.map(appt => appt.id === appointmentId ? updatedAppointment : appt)
+    try {
+      const updatedAppointment = await AppointmentService.cancelAppointment(
+        appointmentId,
+        cancelledBy,
+        reason
       );
-      return { success: true, message: `Đã hủy lịch khám bởi ${cancelledBy === 'doctor' ? 'bác sĩ' : 'bệnh nhân'}` };
+
+      // Cập nhật danh sách mà không làm mất thứ tự
+      setAppointments(prev => 
+        prev.map(appt => 
+          appt.id === appointmentId 
+            ? { ...appt, ...updatedAppointment, status: 'cancelled' }
+            : appt
+        )
+      );
+
+      return { 
+        success: true, 
+        message: cancelledBy === 'doctor' 
+          ? 'Bác sĩ đã hủy lịch hẹn.' 
+          : 'Bạn đã hủy lịch thành công!' 
+      };
+
     } catch (error) {
       console.error('Error in cancelAppointment:', error);
-      setError(error.message || 'Không thể hủy lịch.');
-      return { success: false, message: error.message };
+      setError(error.message || 'Hủy lịch thất bại. Vui lòng thử lại.');
+      return { success: false, message: error.message || 'Hủy thất bại' };
     }
   }
 }

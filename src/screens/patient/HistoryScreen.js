@@ -1,52 +1,78 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl, ActivityIndicator, Platform } from 'react-native';
+// src/screens/patient/HistoryScreen.js
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import AppointmentCard from '../../components/AppointmentCard';
 import { AppointmentController } from '../../controllers/patient/AppointmentController';
-import { supabase } from '../../api/supabase';
 
 const Colors = {
   primary: '#1D4ED8',
   secondary: '#38BDF8',
-  iconBgStart: '#E0F2FE',
-  iconBgEnd: '#BFDBFE',
+  success: '#10B981',
+  danger: '#EF4444',
+  warning: '#F59E0B',
+  muted: '#94A3B8',
   textPrimary: '#1E293B',
-  textSecondary: '#6B7280',
-  border: '#F1F5F9',
+  textSecondary: '#64748B',
+  bg: '#F8FAFC',
   cardBg: '#FFFFFF',
-  shadow: '#000',
-  bg: '#F4F7FC',
-  danger: '#DC2626',
-  muted: '#9CA3AF',
-  success: '#059669',
 };
+
+const TABS = [
+  { key: 'confirmed', title: 'Đã đồng ý',   icon: 'checkmark-circle', color: Colors.success },
+  { key: 'pending',   title: 'Chưa phản hồi', icon: 'time',          color: Colors.warning },
+  { key: 'cancelled', title: 'Đã hủy',      icon: 'close-circle',   color: Colors.danger  },
+];
 
 export default function HistoryScreen() {
   const navigation = useNavigation();
+
   const [appointments, setAppointments] = useState([]);
+  const [activeTab, setActiveTab] = useState('confirmed');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const previousAppointmentsRef = useRef([]); // Lưu danh sách trước đó
-  const notifiedAppointmentsRef = useRef(new Set()); // Theo dõi các cuộc hẹn đã thông báo
 
-  const fetchAppointments = useCallback(async () => {
-    await AppointmentController.loadAppointments(setAppointments, setLoading, setError);
+  // LẤY DỮ LIỆU – ĐÃ FIX LỖI CALLBACK
+  const fetchAppointments = useCallback(() => {
+    AppointmentController.loadAppointments(
+      setAppointments,   // ← truyền đúng hàm setter
+      setLoading,
+      setError
+    );
   }, []);
 
   useEffect(() => {
     fetchAppointments();
   }, [fetchAppointments]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchAppointments();
-  };
+    AppointmentController.loadAppointments(setAppointments, setLoading, setError)
+      .finally(() => setRefreshing(false));
+  }, []);
 
-  const handleCancel = useCallback(async (id) => {
+  // LỌC THEO TAB
+  const filteredAppointments = appointments.filter(app => {
+    if (activeTab === 'confirmed') return app.status === 'confirmed';
+    if (activeTab === 'pending')   return app.status === 'pending';
+    return ['cancelled', 'doctor_cancelled', 'patient_cancelled'].includes(app.status);
+  });
+
+  const handleCancel = async (id) => {
     Alert.alert(
       'Hủy lịch khám',
       'Bạn có chắc chắn muốn hủy lịch này?',
@@ -56,59 +82,58 @@ export default function HistoryScreen() {
           text: 'Hủy lịch',
           style: 'destructive',
           onPress: async () => {
-            const { success, message } = await AppointmentController.cancelAppointment(id, setAppointments, setError);
-            if (success) {
-              Alert.alert('Thành công', message);
+            const result = await AppointmentController.cancelAppointment(
+              id,
+              setAppointments,
+              setError,
+              'patient'
+            );
+            if (result.success) {
+              Alert.alert('Thành công', result.message);
             } else {
-              Alert.alert('Lỗi', message);
+              Alert.alert('Lỗi', result.message);
             }
           },
         },
-      ],
-      { cancelable: true }
+      ]
     );
-  }, []);
+  };
 
-  const handleDoctorCancelNotification = useCallback((appointment) => {
-    if (appointment.status === 'doctor_cancelled' && !notifiedAppointmentsRef.current.has(appointment.id)) {
-      Alert.alert(
-        'Lịch hẹn bị hủy',
-        `Lịch hẹn của bạn với ${appointment.doctor.name || 'bác sĩ'} đã bị hủy bởi bác sĩ.\nLý do: ${appointment.cancelled_by?.reason || 'Không có lý do'}`,
-        [
-          { text: 'Đóng', style: 'cancel' },
-          {
-            text: 'Đặt lại',
-            onPress: () => navigation.navigate('BookingOptionsScreen', { doctorId: appointment.doctor_id }),
-          },
-        ],
-        { cancelable: true }
-      );
-      notifiedAppointmentsRef.current.add(appointment.id); // Đánh dấu đã thông báo
-      // Cập nhật notified trong database (nếu cột tồn tại)
-      if (appointment.id && 'notified' in appointment) {
-        supabase
-          .from('appointments')
-          .update({ notified: true })
-          .eq('id', appointment.id)
-          .then(() => console.log('Đánh dấu thông báo thành công'))
-          .catch(err => console.error('Lỗi đánh dấu thông báo:', err));
-      }
-    }
-  }, [navigation]);
+  // TAB ITEM
+  const renderTab = ({ item }) => {
+    const count = appointments.filter(app => {
+      if (item.key === 'confirmed') return app.status === 'confirmed';
+      if (item.key === 'pending')   return app.status === 'pending';
+      return ['cancelled', 'doctor_cancelled', 'patient_cancelled'].includes(app.status);
+    }).length;
 
-  // Kiểm tra các cuộc hẹn mới bị hủy khi danh sách thay đổi
-  useEffect(() => {
-    if (!loading && !refreshing) {
-      const newAppointments = appointments.filter(
-        app => !previousAppointmentsRef.current.some(prev => prev.id === app.id) || 
-               (app.status === 'doctor_cancelled' && !previousAppointmentsRef.current.find(prev => prev.id === app.id)?.notified)
-      );
-      newAppointments.forEach(appointment => {
-        handleDoctorCancelNotification(appointment);
-      });
-      previousAppointmentsRef.current = appointments; // Cập nhật danh sách trước đó
-    }
-  }, [appointments, loading, refreshing, handleDoctorCancelNotification]);
+    const isActive = activeTab === item.key;
+
+    return (
+      <TouchableOpacity
+        style={[styles.tabButton, isActive && styles.tabActive]}
+        onPress={() => setActiveTab(item.key)}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={isActive ? [item.color, item.color + 'dd'] : ['#E2E8F0', '#F1F5F9']}
+          style={styles.tabGradient}
+        >
+          <Ionicons name={item.icon} size={22} color={isActive ? '#FFF' : item.color} />
+          <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+            {item.title}
+          </Text>
+          {count > 0 && (
+            <View style={[styles.badge, { backgroundColor: isActive ? '#FFF' : item.color }]}>
+              <Text style={[styles.badgeText, isActive && { color: item.color }]}>
+                {count}
+              </Text>
+            </View>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading && !refreshing) {
     return (
@@ -121,76 +146,55 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.background}>
-      <Animated.View entering={FadeInDown.duration(500)} style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.primary, Colors.secondary]}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-        >
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => navigation.navigate('HomeScreen')}
-            activeOpacity={0.7}
-          >
+      {/* HEADER */}
+      <Animated.View entering={FadeInDown.duration(500)}>
+        <LinearGradient colors={[Colors.primary, Colors.secondary]} style={styles.header}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
           </TouchableOpacity>
           <Text style={styles.title}>Lịch sử đặt lịch</Text>
-          <TouchableOpacity onPress={onRefresh} style={styles.iconButton}>
+          <TouchableOpacity style={styles.iconButton} onPress={onRefresh}>
             <Ionicons name="refresh" size={24} color="#FFF" />
           </TouchableOpacity>
         </LinearGradient>
       </Animated.View>
 
+      {/* TABS */}
+      <View style={styles.tabContainer}>
+        <FlatList
+          data={TABS}
+          renderItem={renderTab}
+          keyExtractor={item => item.key}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+        />
+      </View>
+
+      {/* NỘI DUNG */}
       <View style={styles.container}>
-        {error ? (
-          <Text style={styles.errorText}>{error}</Text>
-        ) : appointments.length === 0 ? (
+        {filteredAppointments.length === 0 ? (
           <Animated.View entering={ZoomIn.duration(500)} style={styles.empty}>
-            <View style={styles.emptyIconContainer}>
-              <LinearGradient
-                colors={['#BFDBFE', '#E0F2FE']}
-                style={styles.emptyIcon}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Ionicons name="calendar-outline" size={60} color={Colors.primary} />
-              </LinearGradient>
-            </View>
-            <Text style={styles.emptyTitle}>Chưa có lịch hẹn nào</Text>
-            <Text style={styles.emptySubtitle}>Hãy đặt lịch khám đầu tiên của bạn ngay!</Text>
-            <TouchableOpacity
-              style={styles.bookButton}
-              onPress={() => navigation.navigate('BookByDate')}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={[Colors.primary, Colors.secondary]}
-                style={styles.bookGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Ionicons name="calendar-add-outline" size={20} color="#FFF" />
-                <Text style={styles.bookText}>Đặt lịch ngay</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            <Ionicons name="calendar-outline" size={80} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>Chưa có lịch hẹn</Text>
+            <Text style={styles.emptySubtitle}>
+              {activeTab === 'confirmed' && 'Bạn chưa có lịch nào được duyệt'}
+              {activeTab === 'pending' && 'Không có lịch đang chờ duyệt'}
+              {activeTab === 'cancelled' && 'Bạn chưa hủy lịch nào'}
+            </Text>
           </Animated.View>
         ) : (
           <FlatList
-            data={appointments}
+            data={filteredAppointments}
             keyExtractor={item => item.id.toString()}
-            renderItem={({ item, index }) => <AppointmentCard item={item} index={index} onCancel={handleCancel} />}
+            renderItem={({ item, index }) => (
+              <AppointmentCard item={item} index={index} onCancel={handleCancel} />
+            )}
             refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={[Colors.primary]}
-                tintColor={Colors.primary}
-              />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
             }
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.list}
-            ListEmptyComponent={<Text style={styles.emptyText}>Không có lịch hẹn nào.</Text>}
           />
         )}
       </View>
@@ -198,56 +202,43 @@ export default function HistoryScreen() {
   );
 }
 
+// STYLES ĐẸP + BO TRÒN
 const styles = StyleSheet.create({
   background: { flex: 1, backgroundColor: Colors.bg },
-  headerContainer: { paddingTop: Platform.OS === 'ios' ? 50 : 30, backgroundColor: Colors.primary },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 18,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    backgroundColor: 'transparent',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: { fontSize: 24, fontWeight: '800', color: '#FFF' },
+
+  tabContainer: { paddingVertical: 16, backgroundColor: Colors.bg },
+  tabButton: { borderRadius: 30, overflow: 'hidden', elevation: 4 },
+  tabActive: { elevation: 10 },
+  tabGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, gap: 10 },
+  tabText: { fontSize: 15, fontWeight: '700', color: '#64748B' },
+  tabTextActive: { color: '#FFF' },
+  badge: { minWidth: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
+  badgeText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+
   container: { flex: 1 },
+  list: { padding: 16, paddingBottom: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.bg },
   loadingText: { marginTop: 12, fontSize: 16, color: Colors.textPrimary, fontWeight: '600' },
-  list: { padding: 16, paddingBottom: 30 },
-  errorText: { textAlign: 'center', color: Colors.danger, padding: 16 },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyIconContainer: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    overflow: 'hidden',
-    borderWidth: 4,
-    borderColor: '#E0F2FE',
-  },
-  emptyIcon: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    opacity: 0.9,
-  },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 30, textAlign: 'center' },
-  emptyText: { textAlign: 'center', color: Colors.muted, padding: 16 },
-  bookButton: { borderRadius: 18, overflow: 'hidden' },
-  bookGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 14, gap: 8 },
-  bookText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginTop: 16 },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
 });

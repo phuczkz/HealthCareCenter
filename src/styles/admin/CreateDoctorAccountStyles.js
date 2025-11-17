@@ -1,10 +1,7 @@
-// src/styles/admin/CreateDoctorAccountStyles.js
 import { StyleSheet, Platform } from 'react-native';
 
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-
-  // HEADER
   header: {
     paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingHorizontal: 20,
@@ -30,10 +27,7 @@ export const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '600',
   },
-
   scrollContent: { padding: 16, paddingTop: 20 },
-
-  // INPUT GROUP
   inputGroup: { marginBottom: 18 },
   label: {
     fontSize: 14,
@@ -41,8 +35,6 @@ export const styles = StyleSheet.create({
     color: '#475569',
     marginBottom: 8,
   },
-
-  // INPUT WRAPPER
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -70,8 +62,6 @@ export const styles = StyleSheet.create({
     color: '#1E293B',
     paddingVertical: 14,
   },
-
-  // TEXTAREA
   textAreaWrapper: {
     flexDirection: 'row',
     backgroundColor: '#fff',
@@ -99,8 +89,6 @@ export const styles = StyleSheet.create({
     paddingTop: 14,
     paddingRight: 16,
   },
-
-  // DROPDOWN
   dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -128,8 +116,6 @@ export const styles = StyleSheet.create({
     color: '#1E293B',
     paddingVertical: 14,
   },
-
-  // NÚT
   primaryButton: {
     marginTop: 32,
     borderRadius: 28,
@@ -149,8 +135,6 @@ export const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
   },
-
-  // MODAL
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
   modalContainer: {
     position: 'absolute',
@@ -195,7 +179,6 @@ export const styles = StyleSheet.create({
     color: '#1E293B',
     fontWeight: '600',
   },
-  // THÊM VÀO styles
 backButton: {
   position: 'absolute',
   left: 16,

@@ -1,4 +1,3 @@
-// src/screens/patient/Book_appointment/BookByDate/ConfirmBooking.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -16,7 +15,6 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../../../api/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// HÀM SIÊU AN TOÀN – CHỐNG CRASH 100% KHI GIỜ BỊ NULL/UNDEFINED
 const safeTime = (timeVal) => {
   if (!timeVal) return '08:00';
   const str = String(timeVal).trim();
@@ -33,7 +31,6 @@ export default function ConfirmBooking() {
   const [patientPhone, setPatientPhone] = useState('');
   const [servicePrice, setServicePrice] = useState('150.000đ');
 
-  // Kiểm tra dữ liệu đầu vào ngay lập tức
   useEffect(() => {
     if (!date || !department || !slot || !doctor) {
       Alert.alert('Lỗi', 'Thiếu thông tin đặt lịch');
@@ -50,7 +47,6 @@ export default function ConfirmBooking() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Lấy thông tin bệnh nhân
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('full_name, phone')
@@ -62,7 +58,6 @@ export default function ConfirmBooking() {
         setPatientPhone(profile.phone || '');
       }
 
-      // Lấy giá dịch vụ nếu chưa có
       if (!initialPrice) {
         const { data: service } = await supabase
           .from('services')
@@ -101,7 +96,6 @@ export default function ConfirmBooking() {
       const { data: { user }, error: userErr } = await supabase.auth.getUser();
       if (userErr || !user) throw new Error('Chưa đăng nhập');
 
-      // FIX TRIỆT ĐỂ: DÙ start_time/end_time bị undefined → vẫn an toàn
       const startTime = safeTime(slot.start_time);
       const endTime = safeTime(slot.end_time);
 
@@ -123,7 +117,6 @@ export default function ConfirmBooking() {
         throw new Error('Không tìm thấy khung giờ. Vui lòng chọn lại.');
       }
 
-      // Kiểm tra số lượng đã đặt
       const { count } = await supabase
         .from('appointments')
         .select('*', { count: 'exact', head: true })
@@ -137,7 +130,6 @@ export default function ConfirmBooking() {
         return;
       }
 
-      // Gọi RPC đặt lịch
       const { data, error } = await supabase.rpc('book_appointment_rpc', {
         p_user_id: user.id,
         p_doctor_id: doctor.id,
@@ -186,7 +178,6 @@ export default function ConfirmBooking() {
     }
   };
 
-  // FIX: Dùng safeTime để hiển thị giờ an toàn
   const timeDisplay = `${safeTime(slot?.start_time)} - ${safeTime(slot?.end_time)}`;
   const dateDisplay = new Date(date).toLocaleDateString('vi-VN', {
     weekday: 'long',
@@ -205,7 +196,6 @@ export default function ConfirmBooking() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Thông tin lịch khám */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Chi tiết lịch khám</Text>
           <View style={styles.divider} />
@@ -219,7 +209,6 @@ export default function ConfirmBooking() {
           )}
         </View>
 
-        {/* Thông tin bệnh nhân */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Thông tin bệnh nhân</Text>
           <View style={styles.divider} />
@@ -241,7 +230,6 @@ export default function ConfirmBooking() {
           />
         </View>
 
-        {/* Thẻ giá */}
         <View style={styles.priceCardContainer}>
           <LinearGradient colors={['#10B981', '#059669']} style={styles.priceCard}>
             <Text style={styles.priceLabel}>Phí khám dự kiến</Text>
@@ -250,7 +238,6 @@ export default function ConfirmBooking() {
         </View>
       </ScrollView>
 
-      {/* Nút đặt lịch */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.confirmButton} onPress={handleBooking} disabled={loading}>
           <LinearGradient
@@ -269,7 +256,6 @@ export default function ConfirmBooking() {
   );
 }
 
-// Component con
 const InfoRow = ({ icon, label, value }) => (
   <View style={styles.infoRow}>
     <Ionicons name={icon} size={20} color="#4B5563" />
@@ -291,8 +277,6 @@ const InputGroup = ({ icon, placeholder, value, onChangeText, ...props }) => (
     />
   </View>
 );
-
-// Styles siêu đẹp
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   scrollContent: { paddingBottom: 120 },

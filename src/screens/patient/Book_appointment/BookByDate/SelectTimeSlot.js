@@ -1,4 +1,3 @@
-// src/screens/patient/Book_appointment/BookByDate/SelectTimeSlot.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
@@ -24,7 +23,6 @@ const DOCTOR_CARD_PADDING_X = 16;
 const INNER_CONTENT_WIDTH = width - (2 * LIST_HORIZONTAL_PADDING) - (2 * DOCTOR_CARD_PADDING_X);
 const SLOT_WIDTH_V2 = (INNER_CONTENT_WIDTH - 8) / 2;
 
-// HÀM SIÊU AN TOÀN – CHỐNG CRASH SLICE OF UNDEFINED
 const safeTime = (timeVal) => {
   if (!timeVal) return null;
   const str = String(timeVal).trim();

@@ -75,13 +75,7 @@ export default function PatientStack() {
       <Stack.Screen
         name="MedicalRecordScreen"
         component={MedicalRecordScreen}
-        options={{
-          headerShown: true,
-          title: "Bệnh án & Kết quả cận lâm sàng",
-          headerTitleStyle: { fontWeight: '800', fontSize: 20 },
-          headerTintColor: '#FFF',
-          headerStyle: { backgroundColor: '#1D4ED8' },
-        }}
+      
       />
     </Stack.Navigator>
   );

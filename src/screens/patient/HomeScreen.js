@@ -190,7 +190,7 @@ export default function HomeScreen() {
   );
 }
 
-// === STYLES (GIỮ NGUYÊN) ===
+// STYLES
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   content: { paddingBottom: 80 },
@@ -249,7 +249,6 @@ const styles = StyleSheet.create({
   card: {
     width: "47%",
     aspectRatio: 1,
-    // height: 100,
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     justifyContent: "center",
@@ -263,8 +262,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F1F5F9",
   },
-  // marginRight: { marginRight: 8 },
-  // marginLeft: { marginLeft: 8 },
+
   disabled: { opacity: 0.4, backgroundColor: "#F1F5F9" },
   iconWrapper: { borderRadius: 40, padding: 12, marginBottom: 6 },
   title: {

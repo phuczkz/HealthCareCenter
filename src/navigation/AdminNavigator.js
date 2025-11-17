@@ -1,13 +1,11 @@
-// src/navigation/AdminTabs.js
+// src/navigation/AdminNavigator.js
 import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../shared/colors';
-
 import AdminHomeScreen from '../screens/admin/AdminHomeScreen';
 import ManageDoctorsScreen from '../screens/admin/ManageDoctorsScreen';
-import ManageUsersScreen from '../screens/admin/ManageUsersScreen';
 import ManagePatientsScreen from '../screens/admin/ManagePatientsScreen';
+import ManageUsersScreen from '../screens/admin/ManageUsersScreen';
 import AdminDashboard from '../screens/admin/AdminDashboard';
 import CreateUserScreen from '../screens/admin/CreateUserScreen';
 import ReportsScreen from '../screens/admin/ReportsScreen';
@@ -20,29 +18,27 @@ export default function AdminNavigator() {
   return (
     <Drawer.Navigator
       initialRouteName="Trang chủ"
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: true,
-        headerTintColor: Colors.white,
-        headerStyle: { backgroundColor: Colors.primary },
-        drawerActiveTintColor: Colors.primary,
-        drawerInactiveTintColor: Colors.textSecondary,
-        drawerStyle: {
-          backgroundColor: Colors.card,
-          width: 250,
-        },
+        headerTintColor: '#fff',
+        headerStyle: { backgroundColor: '#1E40AF' },
+        drawerActiveTintColor: '#3B82F6',
+        drawerInactiveTintColor: '#64748B',
+        drawerStyle: { backgroundColor: '#fff', width: 260 },
+        drawerLabelStyle: { fontSize: 15, fontWeight: '600' },
         drawerIcon: ({ color, size }) => {
           const icons = {
-            'Trang chủ': 'home-outline',
-            'Bác sĩ': 'medkit-outline',
-            'Bệnh nhân': 'heart-outline',
-            'Người dùng': 'people-outline',
-            'Quản trị': 'settings-outline',
-            'Tạo tài khoản': 'person-add-outline',
-            'Tạo bác sĩ': 'briefcase-outline',
-            'Báo cáo': 'bar-chart-outline',
-            'Lịch làm việc': 'calendar-outline', // ĐỔI TÊN ĐỂ GỌN
+            'Trang chủ': 'home',
+            'Bác sĩ': 'medkit',
+            'Bệnh nhân': 'heart',
+            'Người dùng': 'people',
+            'Quản trị': 'settings',
+            'Tạo tài khoản': 'person-add',
+            'Tạo bác sĩ': 'briefcase',
+            'Báo cáo': 'bar-chart',
+            'Lịch làm việc': 'calendar',
           };
-          return <Ionicons name={icons[route.name] || 'ellipse-outline'} size={size} color={color} />;
+          return <Ionicons name={icons[route.name] || 'ellipse'} size={size} color={color} />;
         },
       })}
     >
@@ -54,12 +50,7 @@ export default function AdminNavigator() {
       <Drawer.Screen name="Tạo tài khoản" component={CreateUserScreen} />
       <Drawer.Screen name="Tạo bác sĩ" component={CreateDoctorAccountScreen} />
       <Drawer.Screen name="Báo cáo" component={ReportsScreen} />
-      
-      {/* ĐỔI TÊN ROUTE TỪ "Lịch làm việc bác sĩ" → "Lịch làm việc" */}
-      <Drawer.Screen 
-        name="Lịch làm việc" 
-        component={CreateDoctorScheduleScreen} 
-      />
+      <Drawer.Screen name="Lịch làm việc" component={CreateDoctorScheduleScreen} />
     </Drawer.Navigator>
   );
 }

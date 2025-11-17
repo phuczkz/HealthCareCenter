@@ -11,7 +11,9 @@ import {
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../api/supabase';
 import { styles } from '../../styles/admin/CreateDoctorAccountStyles';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -34,22 +36,34 @@ export default function CreateDoctorAccountScreen() {
   const [searchDept, setSearchDept] = useState('');
   const [filteredDepts, setFilteredDepts] = useState([]);
 
-  const emailRef = useRef(null);
-  const passwordRef = useRef(null);
-  const specRef = useRef(null);
-  const expRef = useRef(null);
-  const roomRef = useRef(null);
-  const maxRef = useRef(null);
-  const bioRef = useRef(null);
+  // Animation
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const modalAnim = useRef(new Animated.Value(300)).current;
 
-  // === LẤY DANH SÁCH KHOA ===
+  const inputRefs = {
+    email: useRef(null),
+    password: useRef(null),
+    spec: useRef(null),
+    exp: useRef(null),
+    room: useRef(null),
+    max: useRef(null),
+    bio: useRef(null),
+  };
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, friction: 8, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
   useEffect(() => {
     const fetchDepartments = async () => {
       const { data, error } = await supabase
         .from('departments')
         .select('id, name')
         .order('name');
-
       if (error) {
         Alert.alert('Lỗi', 'Không thể tải danh sách khoa.');
       } else {
@@ -60,7 +74,6 @@ export default function CreateDoctorAccountScreen() {
     fetchDepartments();
   }, []);
 
-  // === TÌM KIẾM KHOA ===
   useEffect(() => {
     const filtered = departments.filter((dep) =>
       dep.name.toLowerCase().includes(searchDept.toLowerCase())
@@ -68,7 +81,6 @@ export default function CreateDoctorAccountScreen() {
     setFilteredDepts(filtered);
   }, [searchDept, departments]);
 
-  // === XÁC THỰC ===
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const isValidPassword = (pwd) => pwd.length >= 6;
 
@@ -77,7 +89,6 @@ export default function CreateDoctorAccountScreen() {
     return dep ? dep.name : 'Chọn khoa';
   };
 
-  // === TIẾP TỤC → CHỈ TRUYỀN DỮ LIỆU, KHÔNG LƯU DB ===
   const handleNext = () => {
     if (!fullName.trim() || !email.trim() || !password || !departmentId) {
       Alert.alert('Thiếu thông tin', 'Vui lòng nhập đầy đủ các trường bắt buộc.');
@@ -92,7 +103,6 @@ export default function CreateDoctorAccountScreen() {
       return;
     }
 
-    // CHỈ TRUYỀN DỮ LIỆU QUA MÀN HÌNH LỊCH
     navigation.navigate('Lịch làm việc', {
       doctorInfo: {
         fullName,
@@ -108,184 +118,189 @@ export default function CreateDoctorAccountScreen() {
     });
   };
 
+  const openModal = () => {
+    setDeptModalVisible(true);
+    Animated.spring(modalAnim, {
+      toValue: 0,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeModal = () => {
+    Animated.spring(modalAnim, {
+      toValue: 300,
+      friction: 8,
+      useNativeDriver: true,
+    }).start(() => setDeptModalVisible(false));
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView
-        style={styles.container}
+      {/* HEADER GRADIENT */}
+      <LinearGradient colors={['#1E40AF', '#3B82F6']} style={styles.header}>
+        <TouchableOpacity 
+  style={styles.backButton} 
+  onPress={() => navigation.goBack()}
+  activeOpacity={0.7}
+>
+  <Icon name="arrow-back" size={24} color="#fff" />
+</TouchableOpacity>
+        <Text style={styles.headerTitle}>Tạo tài khoản bác sĩ</Text>
+        <Text style={styles.headerSubtitle}>Bước 1/2</Text>
+      </LinearGradient>
+
+      <Animated.ScrollView
+        style={[styles.container, { opacity: fadeAnim }]}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Tạo tài khoản bác sĩ (1/2)</Text>
+        <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
+          {/* INPUTS */}
+          <InputField
+            label="Họ và tên *"
+            icon="person-outline"
+            value={fullName}
+            onChangeText={setFullName}
+            placeholder="Nguyễn Văn A"
+            returnKeyType="next"
+            onSubmitEditing={() => inputRefs.email.current?.focus()}
+          />
 
-        {/* Full Name */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Họ và tên *</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="person-outline" size={20} color="#666" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Nguyễn Văn A"
-              value={fullName}
-              onChangeText={setFullName}
-              returnKeyType="next"
-              onSubmitEditing={() => emailRef.current?.focus()}
-            />
-          </View>
-        </View>
+          <InputField
+            ref={inputRefs.email}
+            label="Email *"
+            icon="mail-outline"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="doctor@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            returnKeyType="next"
+            onSubmitEditing={() => inputRefs.password.current?.focus()}
+          />
 
-        {/* Email */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email *</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
-            <TextInput
-              ref={emailRef}
-              style={styles.input}
-              placeholder="doctor@example.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              returnKeyType="next"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-            />
-          </View>
-        </View>
+          <InputField
+            ref={inputRefs.password}
+            label="Mật khẩu *"
+            icon="lock-closed-outline"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            secureTextEntry
+            returnKeyType="next"
+          />
 
-        {/* Password */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Mật khẩu *</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-            <TextInput
-              ref={passwordRef}
-              style={styles.input}
-              placeholder="••••••••"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              returnKeyType="next"
-            />
-          </View>
-        </View>
-
-        {/* Khoa */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Khoa *</Text>
-          <TouchableOpacity
-            style={styles.dropdownButton}
-            onPress={() => setDeptModalVisible(true)}
-          >
-            <Icon name="business-outline" size={20} color="#007AFF" style={styles.inputIcon} />
-            <Text style={styles.dropdownText}>{selectedDepartmentName()}</Text>
-            <Icon name="chevron-down" size={20} color="#007AFF" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Chuyên môn */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Chuyên môn</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="medkit-outline" size={20} color="#666" style={styles.inputIcon} />
-            <TextInput
-              ref={specRef}
-              style={styles.input}
-              placeholder="Tim mạch, Nội khoa..."
-              value={specialization}
-              onChangeText={setSpecialization}
-            />
-          </View>
-        </View>
-
-        {/* Kinh nghiệm */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Số năm kinh nghiệm</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="time-outline" size={20} color="#666" style={styles.inputIcon} />
-            <TextInput
-              ref={expRef}
-              style={styles.input}
-              placeholder="5"
-              value={experienceYears}
-              onChangeText={setExperienceYears}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-
-        {/* Phòng */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Số phòng</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="home-outline" size={20} color="#666" style={styles.inputIcon} />
-            <TextInput
-              ref={roomRef}
-              style={styles.input}
-              placeholder="202"
-              value={roomNumber}
-              onChangeText={setRoomNumber}
-            />
-          </View>
-        </View>
-
-        {/* Số bệnh nhân/ca */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Số bệnh nhân/ca</Text>
-          <View style={styles.inputWrapper}>
-            <Icon name="people-outline" size={20} color="#666" style={styles.inputIcon} />
-            <TextInput
-              ref={maxRef}
-              style={styles.input}
-              placeholder="5"
-              value={maxPatients}
-              onChangeText={setMaxPatients}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-
-        {/* Tiểu sử */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tiểu sử</Text>
-          <View style={[styles.inputWrapper, { height: 100, alignItems: 'flex-start' }]}>
-            <Icon name="document-text-outline" size={20} color="#666" style={styles.inputIcon} />
-            <TextInput
-              ref={bioRef}
-              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-              placeholder="Giới thiệu ngắn gọn..."
-              value={bio}
-              onChangeText={setBio}
-              multiline
-            />
-          </View>
-        </View>
-
-        {/* NÚT TIẾP TỤC */}
-        <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
-          <Text style={styles.primaryButtonText}>Tiếp tục → Chọn lịch làm việc</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* MODAL CHỌN KHOA */}
-      <Modal visible={deptModalVisible} animationType="slide" transparent>
-        <TouchableWithoutFeedback onPress={() => setDeptModalVisible(false)}>
-          <View style={styles.modalOverlay} />
-        </TouchableWithoutFeedback>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chọn khoa</Text>
-            <TouchableOpacity onPress={() => setDeptModalVisible(false)}>
-              <Icon name="close" size={24} color="#666" />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Khoa *</Text>
+            <TouchableOpacity style={styles.dropdownButton} onPress={openModal}>
+              <View style={styles.dropdownIcon}>
+                <Icon name="business-outline" size={20} color="#fff" />
+              </View>
+              <Text style={styles.dropdownText}>{selectedDepartmentName()}</Text>
+              <Icon name="chevron-down" size={20} color="#3B82F6" />
             </TouchableOpacity>
           </View>
+
+          <InputField
+            ref={inputRefs.spec}
+            label="Chuyên môn"
+            icon="medkit-outline"
+            value={specialization}
+            onChangeText={setSpecialization}
+            placeholder="Tim mạch, Nội khoa..."
+          />
+
+          <InputField
+            ref={inputRefs.exp}
+            label="Số năm kinh nghiệm"
+            icon="time-outline"
+            value={experienceYears}
+            onChangeText={setExperienceYears}
+            placeholder="5"
+            keyboardType="numeric"
+          />
+
+          <InputField
+            ref={inputRefs.room}
+            label="Số phòng"
+            icon="home-outline"
+            value={roomNumber}
+            onChangeText={setRoomNumber}
+            placeholder="202"
+          />
+
+          <InputField
+            ref={inputRefs.max}
+            label="Số bệnh nhân/ca"
+            icon="people-outline"
+            value={maxPatients}
+            onChangeText={setMaxPatients}
+            placeholder="5"
+            keyboardType="numeric"
+          />
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Tiểu sử</Text>
+            <View style={styles.textAreaWrapper}>
+              <View style={styles.textAreaIcon}>
+                <Icon name="document-text-outline" size={20} color="#fff" />
+              </View>
+              <TextInput
+                ref={inputRefs.bio}
+                style={styles.textArea}
+                placeholder="Giới thiệu ngắn gọn..."
+                value={bio}
+                onChangeText={setBio}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+
+          {/* NÚT TIẾP TỤC */}
+          <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
+            <LinearGradient
+              colors={['#3B82F6', '#1D4ED8']}
+              style={styles.primaryButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.primaryButtonText}>
+                Tiếp tục → Chọn lịch làm việc
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.ScrollView>
+
+      {/* MODAL */}
+      <Modal visible={deptModalVisible} animationType="none" transparent>
+        <TouchableWithoutFeedback onPress={closeModal}>
+          <View style={styles.modalOverlay} />
+        </TouchableWithoutFeedback>
+        <Animated.View
+          style={[
+            styles.modalContainer,
+            { transform: [{ translateY: modalAnim }] },
+          ]}
+        >
+          <LinearGradient colors={['#3B82F6', '#1D4ED8']} style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Chọn khoa</Text>
+            <TouchableOpacity onPress={closeModal}>
+              <Icon name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </LinearGradient>
           <TextInput
             style={styles.searchInput}
             placeholder="Tìm khoa..."
             value={searchDept}
             onChangeText={setSearchDept}
+            placeholderTextColor="#94A3B8"
           />
           <ScrollView style={{ maxHeight: 400 }}>
             {filteredDepts.map((dept) => (
@@ -294,7 +309,7 @@ export default function CreateDoctorAccountScreen() {
                 style={styles.modalItem}
                 onPress={() => {
                   setDepartmentId(String(dept.id));
-                  setDeptModalVisible(false);
+                  closeModal();
                   setSearchDept('');
                 }}
               >
@@ -302,8 +317,26 @@ export default function CreateDoctorAccountScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </View>
+        </Animated.View>
       </Modal>
     </KeyboardAvoidingView>
   );
 }
+
+// COMPONENT INPUT ĐẸP
+const InputField = React.forwardRef(({ label, icon, ...props }, ref) => (
+  <View style={styles.inputGroup}>
+    <Text style={styles.label}>{label}</Text>
+    <View style={styles.inputWrapper}>
+      <View style={styles.inputIconWrapper}>
+        <Icon name={icon} size={20} color="#fff" />
+      </View>
+      <TextInput
+        ref={ref}
+        style={styles.input}
+        placeholderTextColor="#94A3B8"
+        {...props}
+      />
+    </View>
+  </View>
+));

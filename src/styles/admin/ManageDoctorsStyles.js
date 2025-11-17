@@ -1,116 +1,198 @@
 // src/styles/admin/ManageDoctorsStyles.js
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform, Dimensions } from 'react-native';
+
+const { width } = Dimensions.get('window');
+const isTablet = width >= 768;
 
 export const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+
+  // LOADING
+  loadingContainer: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+
+  // HEADER
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
   },
   addButton: {
-    backgroundColor: '#10B981',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
   },
+
+  // SEARCH
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 12,
     backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
+  searchIcon: { marginRight: 12 },
   searchInput: {
     flex: 1,
-    paddingVertical: 12,
     fontSize: 16,
-    color: '#1F2937',
+    color: '#1E293B',
+    paddingVertical: 0,
   },
+  clearButton: { padding: 4 },
+
+  // LIST
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 20,
   },
+
+  // DOCTOR CARD
   doctorCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  cardGradient: {
+    flexDirection: 'row',
+    padding: 16,
+    alignItems: 'center',
+  },
+  avatarContainer: {
+    marginRight: 16,
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  avatarGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '800',
   },
   doctorInfo: {
     flex: 1,
   },
   doctorName: {
     fontSize: 17,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  doctorDept: {
+    fontSize: 14,
+    color: '#3B82F6',
     fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
   },
   doctorDetail: {
     fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 2,
+    color: '#64748B',
+    marginLeft: 6,
+    flex: 1,
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   editButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   deleteButton: {
-    padding: 8,
-  },
-  loadingContainer: {
-    flex: 1,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6B7280',
-  },
+
+  // EMPTY
   emptyContainer: {
-    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 80,
+    marginBottom: 20,
   },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#9CA3AF',
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    paddingHorizontal: 40,
   },
 });

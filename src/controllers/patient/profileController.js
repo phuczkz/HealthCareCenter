@@ -64,13 +64,8 @@ const validateProfileData = (formData) => {
  */
 export const getProfile = async () => {
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error("Không tìm thấy thông tin người dùng");
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Không tìm thấy người dùng");
 
     const profile = await profileService.getUserProfile(user.id);
 
@@ -78,7 +73,8 @@ export const getProfile = async () => {
       fullName: profile.full_name || "",
       phone: profile.phone || "",
       dateOfBirth: profile.date_of_birth || "",
-      gender: profile.gender || "", // Giữ nguyên male/female/other từ DB
+      gender: profile.gender || "",
+      avatar_url: profile.avatar_url || "", // ĐẢM BẢO TRẢ VỀ
     };
   } catch (error) {
     console.error("Error in getProfile:", error);

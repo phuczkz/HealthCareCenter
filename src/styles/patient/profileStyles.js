@@ -146,7 +146,11 @@ export default StyleSheet.create({
     fontWeight: "700",
     color: "#FFF",
   },
-
+avatarImage: {
+  width: 100,
+  height: 100,
+  borderRadius: 50,
+},
   logoutContainer: { marginHorizontal: 24, marginTop: 20, alignItems: "center" },
   logoutButtonMain: {
     width: "80%",

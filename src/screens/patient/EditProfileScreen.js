@@ -8,28 +8,33 @@ import {
   ActivityIndicator,
   TextInput,
   Platform,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePickerModal from "react-native-modal-datetime-picker"; // THÊM IMPORT
-import CustomButton from "../../components/CustomButton";
+import DateTimePickerModal from "react-native-modal-datetime-picker";
+import * as ImagePicker from "expo-image-picker";
 import { useUserStore } from "../../store/useUserStore";
 import {
   getProfile,
   updateProfile,
 } from "../../controllers/patient/profileController";
-import { Colors } from "../../shared/colors";
 import { editProfileStyles as styles } from "../../styles/patient/editProfileStyles";
+import { supabase } from "../../api/supabase";
 
 const EditProfileScreen = ({ navigation }) => {
   const { user, setUser } = useUserStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  // THÊM STATE CHO DATE PICKER
+  // Date picker
   const [isDatePickerVisible, setDatePickerVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Avatar
+  const [avatarUrl, setAvatarUrl] = useState(null);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -42,12 +47,24 @@ const EditProfileScreen = ({ navigation }) => {
     fetchUserProfile();
   }, []);
 
+  // === LẤY HỒ SƠ ===
   const fetchUserProfile = async () => {
     try {
+      console.log("Fetching profile...");
       const profile = await getProfile();
-      setFormData(profile);
 
-      // SET SELECTED DATE NẾU CÓ
+      setFormData({
+        fullName: profile.fullName || "",
+        phone: profile.phone || "",
+        dateOfBirth: profile.dateOfBirth || "",
+        gender: profile.gender || "",
+      });
+
+      if (profile.avatar_url) {
+        setAvatarUrl(profile.avatar_url);
+        console.log("Avatar loaded:", profile.avatar_url);
+      }
+
       if (profile.dateOfBirth) {
         setSelectedDate(new Date(profile.dateOfBirth));
       }
@@ -59,23 +76,17 @@ const EditProfileScreen = ({ navigation }) => {
     }
   };
 
-  // THÊM FUNCTIONS CHO DATE PICKER
-  const showDatePicker = () => {
-    setDatePickerVisible(true);
-  };
-
-  const hideDatePicker = () => {
-    setDatePickerVisible(false);
-  };
+  // === DATE PICKER ===
+  const showDatePicker = () => setDatePickerVisible(true);
+  const hideDatePicker = () => setDatePickerVisible(false);
 
   const handleDateConfirm = (date) => {
-    const formattedDate = date.toISOString().split("T")[0]; // YYYY-MM-DD format
+    const formattedDate = date.toISOString().split("T")[0];
     setFormData({ ...formData, dateOfBirth: formattedDate });
     setSelectedDate(date);
     hideDatePicker();
   };
 
-  // FUNCTION FORMAT DATE HIỂN THỊ
   const formatDisplayDate = (dateString) => {
     if (!dateString) return "Chọn ngày sinh";
     const date = new Date(dateString);
@@ -86,22 +97,105 @@ const EditProfileScreen = ({ navigation }) => {
       .padStart(2, "0")}/${date.getFullYear()}`;
   };
 
-  const handleUpdate = async () => {
-    setSaving(true);
-
+  // === CHỌN ẢNH ===
+  const pickImage = async () => {
     try {
-      await updateProfile(formData);
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Quyền bị từ chối", "Cần cấp quyền truy cập thư viện ảnh.");
+        return;
+      }
 
-      setUser({
-        ...user,
-        name: formData.fullName.trim(),
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
       });
 
+      if (!result.canceled) {
+        await uploadAvatar(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Image picker error:", error);
+      Alert.alert("Lỗi", "Không thể chọn ảnh");
+    }
+  };
+
+  // === UPLOAD ẢNH (DÙNG FormData - HOẠT ĐỘNG 100% TRÊN RN) ===
+  const uploadAvatar = async (uri) => {
+    try {
+      setUploading(true);
+      console.log("Uploading avatar...");
+
+      // LẤY USER TỪ SUPABASE
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      if (authError || !authUser?.id) {
+        throw new Error("Không thể xác thực người dùng. Vui lòng đăng nhập lại.");
+      }
+
+      // TẠO FILE NAME
+      const fileExt = uri.split(".").pop()?.toLowerCase() || "jpg";
+      const fileName = `${authUser.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      // TẠO FormData
+      const formData = new FormData();
+formData.append("file", {
+  uri,
+  name: fileName,
+  type: `image/${fileExt}`,
+});
+      // UPLOAD
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, formData, {
+          upsert: true,
+          cacheControl: "3600",
+        });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw new Error(`Upload thất bại: ${uploadError.message}`);
+      }
+
+      console.log("Uploaded to:", filePath);
+
+      // LẤY PUBLIC URL
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+      console.log("Public URL:", publicUrl);
+
+      // CẬP NHẬT DB
+      const { error: dbError } = await supabase
+        .from("user_profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", authUser.id);
+
+      if (dbError) throw dbError;
+
+      // CẬP NHẬT UI
+      setAvatarUrl(publicUrl + `?t=${Date.now()}`);
+      Alert.alert("Thành công", "Cập nhật ảnh đại diện thành công!");
+    } catch (error) {
+      console.error("Upload avatar error:", error);
+      Alert.alert("Lỗi", error.message || "Không thể tải ảnh lên");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // === CẬP NHẬT HỒ SƠ ===
+  const handleUpdate = async () => {
+    setSaving(true);
+    try {
+      await updateProfile(formData);
+      setUser({ ...user, name: formData.fullName.trim() });
       Alert.alert("Thành công", "Cập nhật thông tin thành công", [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
-        },
+        { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -111,6 +205,7 @@ const EditProfileScreen = ({ navigation }) => {
     }
   };
 
+  // === LOADING ===
   if (loading) {
     return (
       <LinearGradient
@@ -127,6 +222,7 @@ const EditProfileScreen = ({ navigation }) => {
     );
   }
 
+  // === RENDER ===
   return (
     <LinearGradient
       colors={["#1D4ED8CC", "#38BDF8B3"]}
@@ -151,28 +247,44 @@ const EditProfileScreen = ({ navigation }) => {
           {/* Avatar Section */}
           <View style={styles.avatarSection}>
             <View style={styles.avatarContainer}>
-              <LinearGradient
-                colors={["#E0F2FE", "#BFDBFE"]}
-                style={styles.avatarGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {formData.fullName
-                      ? formData.fullName.charAt(0).toUpperCase()
-                      : "U"}
-                  </Text>
+              <TouchableOpacity onPress={pickImage} disabled={uploading}>
+                <LinearGradient
+                  colors={["#E0F2FE", "#BFDBFE"]}
+                  style={styles.avatarGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  {avatarUrl ? (
+                    <Image
+                      source={{ uri: avatarUrl }}
+                      style={styles.avatarImage}
+                      resizeMode="cover"
+                      onError={(e) =>
+                        console.error("Image load error:", e.nativeEvent.error)
+                      }
+                    />
+                  ) : (
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>
+                        {formData.fullName
+                          ? formData.fullName.charAt(0).toUpperCase()
+                          : "U"}
+                      </Text>
+                    </View>
+                  )}
+                </LinearGradient>
+                <View style={styles.editAvatarButton}>
+                  {uploading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons name="camera" size={20} color="#FFF" />
+                  )}
                 </View>
-              </LinearGradient>
-              <TouchableOpacity style={styles.editAvatarButton}>
-                <Ionicons name="camera" size={20} color="#FFF" />
               </TouchableOpacity>
             </View>
             <Text style={styles.userName}>
               {formData.fullName || "Người dùng"}
             </Text>
-            <Text style={styles.userRole}>Bệnh nhân</Text>
           </View>
 
           {/* Form Card */}
@@ -197,7 +309,7 @@ const EditProfileScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Email (Read-only) */}
+            {/* Email */}
             <View style={styles.inputGroup}>
               <View style={styles.inputIconContainer}>
                 <Ionicons name="mail" size={24} color="#1D4ED8" />
@@ -229,7 +341,7 @@ const EditProfileScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* NGÀY SINH - THAY ĐỔI THÀNH DATE PICKER */}
+            {/* Ngày sinh */}
             <View style={styles.inputGroup}>
               <View style={styles.inputIconContainer}>
                 <Ionicons name="calendar" size={24} color="#1D4ED8" />
@@ -306,7 +418,7 @@ const EditProfileScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Vai trò (Read-only) */}
+            {/* Vai trò */}
             <View style={styles.inputGroup}>
               <View style={styles.inputIconContainer}>
                 <Ionicons name="shield-checkmark" size={24} color="#1D4ED8" />
@@ -317,7 +429,7 @@ const EditProfileScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Action Buttons */}
+            {/* Buttons */}
             <View style={styles.buttonContainer}>
               <TouchableOpacity
                 style={[styles.saveButton, saving && styles.saveButtonDisabled]}
@@ -336,11 +448,7 @@ const EditProfileScreen = ({ navigation }) => {
                     <ActivityIndicator color="#FFF" />
                   ) : (
                     <>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={24}
-                        color="#FFF"
-                      />
+                      <Ionicons name="checkmark-circle" size={24} color="#FFF" />
                       <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
                     </>
                   )}
@@ -358,7 +466,7 @@ const EditProfileScreen = ({ navigation }) => {
           </View>
         </ScrollView>
 
-        {/* DATE PICKER MODAL */}
+        {/* Date Picker */}
         <DateTimePickerModal
           isVisible={isDatePickerVisible}
           mode="date"

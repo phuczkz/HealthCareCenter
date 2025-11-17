@@ -34,48 +34,47 @@ export default function CreateDoctorScheduleScreen() {
 
   const isValidTime = (time) => /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time);
 
+  // === CHUYỂN GIỜ → PHÚT ===
+  const toMinutes = (time) => {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  // === KIỂM TRA TRÙNG LẶP GIỜ ===
+  const hasOverlap = (slots) => {
+    const sorted = [...slots].sort((a, b) => a.start.localeCompare(b.start));
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const curr = sorted[i];
+      const next = sorted[i + 1];
+      const currEnd = toMinutes(curr.end);
+      const nextStart = toMinutes(next.start);
+      if (currEnd > nextStart) return true;
+    }
+    return false;
+  };
+
   // === THÊM CA ===
   const addSlot = (day) => {
     const existing = schedules[day] || [];
-    let newSlot;
+    let newStart = '08:00';
+    let newEnd = '09:00';
 
     if (existing.length > 0) {
-      const lastSlot = existing[existing.length - 1];
-      let lastEnd = lastSlot.end;
-      let [h, m] = lastEnd.split(':').map(Number);
-      let totalMinutes = h * 60 + m + 60;
+      const last = existing[existing.length - 1];
+      let [h, m] = last.end.split(':').map(Number);
+      let nextHour = h + 1;
 
-      let newH = Math.floor(totalMinutes / 60) % 24;
-      let newM = totalMinutes % 60;
+      // BỎ QUA NGHỈ TRƯA
+      if (h === 12) nextHour = 13;
 
-      // BỎ QUA GIỜ NGHỈ TRƯA
-      if (newH === 12 && newM === 0) {
-        totalMinutes += 60;
-        newH = 13;
-        newM = 0;
-      }
-
-      const newStart = `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
-      const endMin = totalMinutes + 60;
-      const endH = Math.floor(endMin / 60) % 24;
-      const endM = endMin % 60;
-      let newEnd = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-
-      const startMin = newH * 60 + newM;
-      const endMinReal = endH * 60 + endM;
-      if (endMinReal <= startMin) {
-        const nextDayH = (endH + 1) % 24;
-        newEnd = `${String(nextDayH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-      }
-
-      newSlot = { start: newStart, end: newEnd };
-    } else {
-      newSlot = { start: '08:00', end: '09:00' };
+      newStart = `${String(nextHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      const endHour = nextHour + 1;
+      newEnd = `${String(endHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
 
     setSchedules((prev) => ({
       ...prev,
-      [day]: [...(prev[day] || []), newSlot],
+      [day]: [...(prev[day] || []), { start: newStart, end: newEnd }],
     }));
   };
 
@@ -109,38 +108,26 @@ export default function CreateDoctorScheduleScreen() {
       return;
     }
 
-    // === KIỂM TRA GIỜ ===
+    // === KIỂM TRA TỪNG NGÀY ===
     for (const [day, slots] of Object.entries(schedules)) {
-      const sorted = [...slots].sort((a, b) => a.start.localeCompare(b.start));
-      for (let i = 0; i < sorted.length; i++) {
-        const current = sorted[i];
-        const [sh, sm] = current.start.split(':').map(Number);
-        const [eh, em] = current.end.split(':').map(Number);
-        const currentStartMin = sh * 60 + sm;
-        const currentEndMin = eh * 60 + em;
+      if (hasOverlap(slots)) {
+        Alert.alert('Trùng giờ', `${day}: Có khung giờ bị đè lên nhau.`);
+        return;
+      }
 
-        if (!isValidTime(current.start) || !isValidTime(current.end)) {
-          Alert.alert('Sai định dạng', `${day} - Slot ${i + 1}: Dùng HH:MM`);
+      for (let i = 0; i < slots.length; i++) {
+        const slot = slots[i];
+        const startMin = toMinutes(slot.start);
+        const endMin = toMinutes(slot.end);
+
+        if (!isValidTime(slot.start) || !isValidTime(slot.end)) {
+          Alert.alert('Sai định dạng', `${day} - Ca ${i + 1}: Dùng HH:MM (ví dụ: 08:00)`);
           return;
         }
 
-        const isOvernight = currentEndMin < currentStartMin;
-        if (!isOvernight && currentStartMin >= currentEndMin) {
-          Alert.alert('Lỗi giờ', `${day} - Slot ${i + 1}: Giờ kết thúc phải sau giờ bắt đầu`);
+        if (startMin >= endMin) {
+          Alert.alert('Lỗi giờ', `${day} - Ca ${i + 1}: Giờ kết thúc phải sau giờ bắt đầu`);
           return;
-        }
-
-        if (i < sorted.length - 1) {
-          const next = sorted[i + 1];
-          const [nh, nm] = next.start.split(':').map(Number);
-          const nextStartMin = nh * 60 + nm;
-          if (currentEndMin > nextStartMin && !isOvernight) {
-            Alert.alert(
-              'Trùng giờ',
-              `${day}: ${current.start}–${current.end} đè lên ${next.start}–${next.end}`
-            );
-            return;
-          }
         }
       }
     }
@@ -165,12 +152,12 @@ export default function CreateDoctorScheduleScreen() {
       const userId = authData.user?.id;
       if (!userId) throw new Error('Không lấy được ID người dùng');
 
-      // 2. INSERT user_profiles → DÙNG role_id
+      // 2. INSERT user_profiles
       const { error: profileError } = await supabase
         .from('user_profiles')
         .insert({
           id: userId,
-          role_id: 2, // ← ID của 'doctor' trong bảng roles
+          role_id: 2,
           full_name: doctorInfo.fullName.trim(),
           email: doctorInfo.email,
           created_at: new Date().toISOString(),
@@ -194,17 +181,19 @@ export default function CreateDoctorScheduleScreen() {
 
       if (doctorError) throw doctorError;
 
-      // 4. GỘP VÀ LƯU LỊCH → CÓ max_patients_per_slot
-      const scheduleList = Object.entries(schedules).map(([day, slots]) => {
-        const sorted = [...slots].sort((a, b) => a.start.localeCompare(b.start));
-        return {
-          doctor_id: userId,
-          day_of_week: day,
-          start_time: sorted[0].start,
-          end_time: sorted[sorted.length - 1].end,
-          max_patients_per_slot: doctorInfo.maxPatients, // ← CỘT ĐÃ ĐƯỢC THÊM
-        };
-      });
+      // 4. LƯU TỪNG KHUNG GIỜ RIÊNG BIỆT → DB: MỖI CA = 1 DÒNG
+      const scheduleList = [];
+      for (const [day, slots] of Object.entries(schedules)) {
+        for (const slot of slots) {
+          scheduleList.push({
+            doctor_id: userId,
+            day_of_week: day,
+            start_time: slot.start + ':00',  // PostgreSQL: time cần :00
+            end_time: slot.end + ':00',
+            max_patients_per_slot: doctorInfo.maxPatients,
+          });
+        }
+      }
 
       const { error: scheduleError } = await supabase
         .from('doctor_schedule_template')

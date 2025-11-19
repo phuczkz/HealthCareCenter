@@ -1,3 +1,4 @@
+// services/patient/userService.js
 import { supabase } from '../../api/supabase';
 
 export const fetchAuthUser = async () => {
@@ -9,7 +10,7 @@ export const fetchAuthUser = async () => {
 export const fetchUserProfile = async (userId) => {
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id, full_name, gender, date_of_birth, roles(name)')
+    .select('id, full_name, gender, date_of_birth, avatar_url, roles(name)') // THÊM avatar_url
     .eq('id', userId)
     .maybeSingle();
 

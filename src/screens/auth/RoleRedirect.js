@@ -1,3 +1,4 @@
+// src/screens/auth/RoleRedirect.js
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -29,7 +30,7 @@ export default function RoleRedirect() {
 
       switch (role) {
         case 'admin':
-          navigation.replace('AdminTabs');
+          navigation.replace('AdminHome'); // ĐÃ SỬA: DẪN ĐẾN AdminNavigator
           break;
         case 'doctor':
           navigation.replace('DoctorTabs');
@@ -44,7 +45,6 @@ export default function RoleRedirect() {
           navigation.replace('AccountantTabs');
           break;
         default:
-          // ĐÃ SỬA: dùng PatientStack + HomeScreen
           navigation.replace('PatientStack', { screen: 'HomeScreen' });
           break;
       }
@@ -54,8 +54,8 @@ export default function RoleRedirect() {
   }, [navigation]);
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" color="#007AFF" />
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+      <ActivityIndicator size="large" color="#1E40AF" />
     </View>
   );
 }

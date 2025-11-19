@@ -1,4 +1,3 @@
-// src/screens/patient/ProfileScreen.js
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -6,47 +5,36 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
-  StyleSheet,
-  ImageBackground,
-  Platform,
+  Image,
   ScrollView,
+  Platform,
+  StyleSheet,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import Animated, {
-  FadeInUp,
-  FadeInDown,
-  ZoomIn,
-} from "react-native-reanimated";
+import { Ionicons } from "@expo/vector-icons";
+import Animated, { FadeInUp, ZoomIn } from "react-native-reanimated";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
-
-// API
 import { supabase } from "../../api/supabase";
 import { getUserProfile } from "../../controllers/patient/userController";
 import { useUserStore } from "../../store/useUserStore";
+import { formatDate, formatGender } from "../../utils/formatters";
+import theme from "../../theme/theme";
 
-// Utils
-import { formatDate, formatGender, formatRole } from "../../utils/formatters";
-
-// === MÀU CHỦ ĐẠO TỪ HomeScreen ===
-const Colors = {
-  primary: "#1D4ED8",
-  secondary: "#38BDF8",
-  cardBg: "#FFFFFF",
-  iconBgStart: "#E0F2FE",
-  iconBgEnd: "#BFDBFE",
-  textPrimary: "#1E293B",
-  textSecondary: "#4B5563",
-  border: "#F1F5F9",
-  shadow: "#000",
-  danger: "#f55d5dff",
-};
+const {
+  COLORS,
+  GRADIENTS,
+  SPACING,
+  BORDER_RADIUS,
+  FONT_SIZE,
+  FONT_WEIGHT,
+  SHADOWS,
+} = theme;
 
 const getInitials = (name) => {
   if (!name) return "?";
   return name
     .split(" ")
-    .map((word) => word[0])
+    .map((w) => w[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
@@ -62,72 +50,49 @@ export default function ProfileScreen() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError) throw authError;
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Không tìm thấy người dùng.");
-
-      const profileData = await getUserProfile(user.id);
-      setProfile({ ...profileData, email: user.email });
-    } catch (error) {
-      console.error("Lỗi khi tải hồ sơ:", error);
-      Alert.alert("Lỗi", error.message || "Không thể tải hồ sơ.", [
+      const data = await getUserProfile(user.id);
+      setProfile(data);
+    } catch (err) {
+      Alert.alert("Lỗi", err.message || "Không thể tải hồ sơ.", [
         { text: "Thử lại", onPress: fetchProfile },
-        { text: "OK", style: "cancel" },
+        { text: "OK" },
       ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
+  useFocusEffect(React.useCallback(() => { fetchProfile(); }, []));
+
+  const handleLogout = () => {
     Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
-      {
-        text: "Hủy",
-        style: "cancel",
-      },
-      {
-        text: "Đăng xuất",
-        style: "destructive",
-        onPress: performLogout,
-      },
+      { text: "Hủy" },
+      { text: "Đăng xuất", style: "destructive", onPress: performLogout },
     ]);
   };
+
   const performLogout = async () => {
     try {
       setLoggingOut(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await supabase.auth.signOut();
       clearUser();
       navigation.reset({
         index: 0,
         routes: [{ name: "Auth" }],
-      });
-    } catch (error) {
-      console.error("Lỗi khi đăng xuất:", error);
-      Alert.alert("Lỗi", error.message || "Không thể đăng xuất.");
+      }); // ĐÃ SỬA: thêm dấu ] và đóng ngoặc đúng
+    } catch (err) {
+      Alert.alert("Lỗi", err.message || "Không thể đăng xuất.");
     } finally {
       setLoggingOut(false);
     }
   };
 
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchProfile();
-    }, [])
-  );
-
-  // NÚT BACK VỀ HOME
-  const goBackHome = () => {
-    navigation.navigate("HomeScreen");
-  };
-
   if (loading) {
     return (
-      <View style={styles.loadingBg}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Đang tải hồ sơ...</Text>
       </View>
     );
@@ -136,13 +101,10 @@ export default function ProfileScreen() {
   if (!profile) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>Không tìm thấy hồ sơ.</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchProfile}>
-          <LinearGradient
-            colors={[Colors.primary, Colors.secondary]}
-            style={styles.retryGradient}
-          >
-            <Text style={styles.retryButtonText}>Thử lại</Text>
+        <Text style={styles.error}>Không tìm thấy hồ sơ.</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={fetchProfile}>
+          <LinearGradient colors={GRADIENTS.primaryButton} style={styles.retryGradient}>
+            <Text style={styles.retryText}>Thử lại</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -150,396 +112,158 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ImageBackground
-      source={require("../../../assets/images/profile bg-pattern.png")}
-      style={styles.background}
-      blurRadius={8}
-    >
-      <LinearGradient
-        colors={[Colors.primary + "CC", Colors.secondary + "B3"]}
-        style={styles.overlay}
-      >
-        {/* NÚT BACK + HEADER */}
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={goBackHome}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={28} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={styles.screenTitle}>Hồ sơ cá nhân</Text>
-          <View style={{ width: 40 }} />
-        </View>
+    <View style={styles.container}>
+      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={26} color="#FFF" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Hồ sơ cá nhân</Text>
+        <View style={{ width: 44 }} />
+      </LinearGradient>
 
-        <ScrollView
-          style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-        >
-          {/* AVATAR + TÊN */}
-          <Animated.View
-            entering={FadeInDown.duration(800)}
-            style={styles.header}
-          >
-            <Animated.View
-              entering={ZoomIn.duration(600)}
-              style={styles.avatarContainer}
-            >
-              <LinearGradient
-                colors={[Colors.iconBgStart, Colors.iconBgEnd]}
-                style={styles.avatarGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.avatarInner}>
-                  <Text style={styles.avatarText}>
-                    {getInitials(profile.name)}
-                  </Text>
-                </View>
-              </LinearGradient>
-              <View style={styles.avatarRing} />
-            </Animated.View>
-
-            <Animated.Text
-              entering={FadeInUp.delay(300).duration(600)}
-              style={styles.name}
-            >
-              {profile.name}
-            </Animated.Text>
-            <Animated.Text
-              entering={FadeInUp.delay(400).duration(600)}
-              style={styles.role}
-            >
-              {formatRole(profile.role)}
-            </Animated.Text>
-          </Animated.View>
-
-          {/* CARD THÔNG TIN */}
-          <Animated.View
-            entering={FadeInUp.delay(600).duration(800)}
-            style={styles.card}
-          >
-            <View style={styles.cardInner}>
-              <View style={styles.infoContainer}>
-                <InfoItem
-                  icon="email"
-                  label="Email"
-                  value={profile.email}
-                  delay={100}
-                />
-                {profile.phone && (
-                  <InfoItem
-                    icon="phone"
-                    label="Số điện thoại"
-                    value={profile.phone}
-                    delay={200}
-                  />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <View style={styles.avatarSection}>
+          <Animated.View entering={ZoomIn.duration(600)}>
+            <View style={styles.avatarWrapper}>
+              <LinearGradient colors={["#E0E7FF", "#C7D2FE"]} style={styles.avatarBg}>
+                {profile.avatar_url ? (
+                  <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+                ) : (
+                  <View style={styles.initials}>
+                    <Text style={styles.initialsText}>{getInitials(profile.name)}</Text>
+                  </View>
                 )}
-                <InfoItem
-                  icon="human-male-female"
-                  label="Giới tính"
-                  value={formatGender(profile.gender)}
-                  delay={300}
-                />
-                <InfoItem
-                  icon="cake"
-                  label="Ngày sinh"
-                  value={formatDate(profile.date_of_birth)}
-                  delay={400}
-                />
-                <InfoItem
-                  icon="shield-account"
-                  label="Vai trò"
-                  value={formatRole(profile.role)}
-                  delay={500}
-                />
-              </View>
-
-              {/* NÚT CHỈNH SỬA */}
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => navigation.navigate("EditProfile")}
-                activeOpacity={0.8}
-                disabled={loggingOut}
-              >
-                <LinearGradient
-                  colors={[Colors.primary, Colors.secondary]}
-                  style={styles.editButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <MaterialCommunityIcons
-                    name="pencil-outline"
-                    size={22}
-                    color="#FFF"
-                  />
-                  <Text style={styles.editButtonText}>Chỉnh sửa hồ sơ</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              </LinearGradient>
             </View>
           </Animated.View>
 
-          {/* NÚT ĐĂNG XUẤT */}
-          <Animated.View
-            entering={FadeInUp.delay(800).duration(800)}
-            style={styles.logoutContainer}
-          >
-            <TouchableOpacity
-              style={styles.logoutButtonMain}
-              onPress={handleLogout}
-              activeOpacity={0.8}
-              disabled={loggingOut}
-            >
-              <LinearGradient
-                colors={["#DC2626", "#EF4444"]}
-                style={styles.logoutButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                {loggingOut ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons
-                      name="logout"
-                      size={22}
-                      color="#FFF"
-                    />
-                    <Text style={styles.logoutButtonText}>Đăng xuất</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
-        </ScrollView>
-      </LinearGradient>
-    </ImageBackground>
+          <Animated.Text entering={FadeInUp.delay(300)} style={styles.name}>
+            {profile.name}
+          </Animated.Text>
+        </View>
+
+        <Animated.View entering={FadeInUp.delay(500)} style={styles.card}>
+          <InfoRow icon="mail-outline" label="Email" value={profile.email} />
+          {profile.phone && <InfoRow icon="call-outline" label="Điện thoại" value={profile.phone} />}
+          <InfoRow icon="person-outline" label="Giới tính" value={formatGender(profile.gender)} />
+          <InfoRow icon="calendar-outline" label="Ngày sinh" value={formatDate(profile.date_of_birth)} />
+
+          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate("EditProfile")}>
+            <LinearGradient colors={GRADIENTS.primaryButton} style={styles.editGradient}>
+              <Ionicons name="create-outline" size={22} color="#FFF" />
+              <Text style={styles.editText}>Chỉnh sửa hồ sơ</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} disabled={loggingOut}>
+          <LinearGradient colors={["#DC2626", "#EF4444"]} style={styles.logoutGradient}>
+            {loggingOut ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="log-out-outline" size={24} color="#FFF" />
+                <Text style={styles.logoutText}>Đăng xuất</Text>
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 }
 
-// === INFO ITEM ===
-const InfoItem = ({ icon, label, value, delay }) => (
-  <Animated.View
-    entering={FadeInUp.delay(delay).duration(500)}
-    style={styles.infoItem}
-  >
-    <View style={styles.iconContainer}>
-      <MaterialCommunityIcons name={icon} size={26} color={Colors.primary} />
-    </View>
+const InfoRow = ({ icon, label, value }) => (
+  <View style={styles.infoRow}>
+    <Ionicons name={icon} size={26} color={COLORS.primary} />
     <View style={styles.infoText}>
       <Text style={styles.label}>{label}</Text>
       <Text style={styles.value}>{value || "—"}</Text>
     </View>
-  </Animated.View>
+  </View>
 );
 
-// === STYLES ===
 const styles = StyleSheet.create({
-  background: { flex: 1 },
-  overlay: { flex: 1, paddingTop: Platform.OS === "ios" ? 60 : 40 },
-
-  // Top Bar
-  topBar: {
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: 24,
+    borderBottomLeftRadius: BORDER_RADIUS.xxxl,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    backdropFilter: "blur(10px)",
-  },
-  screenTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#FFF",
-    textShadowColor: "rgba(0,0,0,0.2)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  // SCROLL CONTAINER
-  scrollContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 30, // Padding để scroll được thoải mái
-  },
-  // Loading - SỬA ĐỔI
-  loadingContainer: {
-    flex: 1,
+  backBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(255,255,255,0.25)",
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingContent: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  errorContainer: {
-    flex: 1,
-  },
-  errorText: {
-    fontSize: 16,
-    color: "#DC2626",
-    textAlign: "center",
-    marginBottom: 16,
-  },
+  title: { fontSize: 24, fontWeight: FONT_WEIGHT.bold, color: "#FFF" },
 
-  // Header
-  header: { alignItems: "center", marginBottom: 32, marginTop: 20 },
-  avatarContainer: { position: "relative", marginBottom: 20 },
-  avatarGradient: {
+  scroll: { padding: SPACING.xl, paddingTop: SPACING.xl },
+
+  avatarSection: { alignItems: "center", marginBottom: SPACING.xxxl },
+  avatarWrapper: { position: "relative" },
+  avatarBg: {
     width: 120,
     height: 120,
     borderRadius: 60,
     justifyContent: "center",
     alignItems: "center",
-    padding: 4,
+    overflow: "hidden",
+    borderWidth: 4,
+    borderColor: "#FFF",
+    ...SHADOWS.card,
   },
-  avatarInner: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 56,
-    backgroundColor: "#FFF",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 8,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-  },
-  avatarText: { fontSize: 40, fontWeight: "900", color: Colors.primary },
-  avatarRing: {
-    position: "absolute",
-    top: -8,
-    left: -8,
-    right: -8,
-    bottom: -8,
-    borderRadius: 68,
-    borderWidth: 3,
-    borderColor: "rgba(255, 255, 255, 0.3)",
-  },
-  name: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    textShadowColor: "rgba(0,0,0,0.2)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  role: { fontSize: 17, color: "#E5E7EB", marginTop: 4, fontWeight: "600" },
+  avatar: { width: 120, height: 120 },
+  initials: { width: 120, height: 120, justifyContent: "center", alignItems: "center" },
+  initialsText: { fontSize: 44, fontWeight: FONT_WEIGHT.bold, color: COLORS.primary },
 
-  // Card
+  name: { fontSize: 26, fontWeight: FONT_WEIGHT.black, color: COLORS.textPrimary, marginTop: SPACING.lg },
+
   card: {
-    marginHorizontal: 24,
-    borderRadius: 24,
-    overflow: "hidden",
-    elevation: 8,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: "#FFF",
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl,
+    marginBottom: SPACING.xl,
+    ...SHADOWS.card,
   },
-  cardInner: { backgroundColor: Colors.cardBg, padding: 24 },
+  infoRow: { flexDirection: "row", alignItems: "center", marginBottom: SPACING.lg },
+  infoText: { marginLeft: SPACING.xl, flex: 1 },
+  label: { fontSize: 15, color: COLORS.textSecondary },
+  value: { fontSize: 18, fontWeight: FONT_WEIGHT.semibold, color: COLORS.textPrimary, marginTop: 4 },
 
-  // Info
-  infoContainer: { marginBottom: 24 },
-  infoItem: {
+  editBtn: { marginTop: SPACING.xl },
+  editGradient: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: 10,
+  },
+  editText: { fontSize: 17, fontWeight: FONT_WEIGHT.semibold, color: "#FFF" },
+
+  logoutBtn: { marginTop: SPACING.xxl },
+  logoutGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: 12,
   },
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.iconBgStart,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  infoText: { flex: 1 },
-  label: { fontSize: 14, color: Colors.textSecondary, fontWeight: "600" },
-  value: {
-    fontSize: 17,
-    color: Colors.textPrimary,
-    fontWeight: "700",
-    marginTop: 4,
-  },
+  logoutText: { fontSize: 18, fontWeight: FONT_WEIGHT.semibold, color: "#FFF" },
 
-  // Button
-  editButton: {
-    borderRadius: 18,
-    overflow: "hidden",
-    elevation: 8,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-  },
-  editButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-  },
-  editButtonText: {
-    color: "#FFF",
-    fontSize: 17,
-    fontWeight: "700",
-    marginLeft: 10,
-  },
-
-  logoutContainer: {
-    marginHorizontal: 24,
-    marginTop: 20,
-    alignItems: "center",
-  },
-  logoutButtonMain: {
-    borderRadius: 18,
-    overflow: "hidden",
-    elevation: 8,
-    shadowColor: Colors.danger,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    width: "80%",
-  },
-  logoutButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-  },
-  logoutButtonText: {
-    color: "#FFF",
-    fontSize: 17,
-    fontWeight: "700",
-    marginLeft: 10,
-  },
-  // Retry
-  retryButton: { borderRadius: 16, overflow: "hidden" },
-  retryGradient: { paddingHorizontal: 32, paddingVertical: 14 },
-  retryButtonText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 16, fontSize: FONT_SIZE.lg, color: COLORS.textPrimary },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: SPACING.xl },
+  error: { fontSize: 18, color: COLORS.danger, marginBottom: SPACING.xl },
+  retryBtn: { borderRadius: BORDER_RADIUS.lg, overflow: "hidden" },
+  retryGradient: { paddingVertical: 14, paddingHorizontal: 40 },
+  retryText: { fontSize: 17, fontWeight: FONT_WEIGHT.semibold, color: "#FFF" },
 });

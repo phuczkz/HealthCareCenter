@@ -1,4 +1,3 @@
-// src/screens/patient/Book_appointment/BookByDate/SelectDepartment.js
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
@@ -13,11 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient'; // <-- Cần import LinearGradient
+import { LinearGradient } from 'expo-linear-gradient'; 
 import { supabase } from '../../../../api/supabase';
-
-// LƯU Ý: Đảm bảo bạn đã cài đặt 'expo-linear-gradient' nếu dùng Expo: expo install expo-linear-gradient
-
 export default function SelectDepartment() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -28,7 +24,6 @@ export default function SelectDepartment() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // === FORMAT NGÀY ===
   const formatHeaderDate = (dateStr) => {
     const dateObj = new Date(dateStr);
     const dayNames = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
@@ -39,14 +34,12 @@ export default function SelectDepartment() {
   };
   const headerDate = useMemo(() => formatHeaderDate(date), [date]);
 
-  // === CHUYỂN NGÀY → THỨ (TIẾNG VIỆT, ĐÃ TRIM) ===
   const getVietnameseDay = (dateStr) => {
     const date = new Date(dateStr);
     const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
     return dayNames[date.getDay()].trim();
   };
 
-  // === LẤY KHOA CÓ BÁC SĨ LÀM VIỆC NGÀY ĐÓ ===
   const fetchDepartments = useCallback(async () => {
     setLoading(true);
     try {

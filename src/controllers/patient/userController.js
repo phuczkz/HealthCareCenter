@@ -12,6 +12,7 @@ export const getUserProfile = async (userId) => {
       gender: profile?.gender || 'unknown',
       date_of_birth: profile?.date_of_birth || null,
       role: profile?.roles?.name || 'patient',
+      avatar_url: profile?.avatar_url || null, // THÊM DÒNG NÀY
     };
   } catch (err) {
     console.error('getUserProfile error:', err);

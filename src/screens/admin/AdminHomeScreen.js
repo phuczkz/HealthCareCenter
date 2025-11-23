@@ -29,7 +29,7 @@ export default function AdminHomeScreen() {
   const [stats, setStats] = useState({ doctors: 0, patients: 0, users: 0, appointments: 0 });
   const [loading, setLoading] = useState(true);
 
-  // Animation
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnims = useRef(Array.from({ length: 12 }, () => new Animated.Value(0.9))).current;
 

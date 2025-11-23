@@ -1,5 +1,3 @@
-// src/screens/patient/MedicalRecordScreen.js
-
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -21,20 +19,13 @@ import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import theme from "../../theme/theme";
 
-const {
-  COLORS,
-  GRADIENTS,
-  SPACING,
-  BORDER_RADIUS,
-  FONT_WEIGHT,
-  SHADOWS,
-} = theme;
+const { COLORS, GRADIENTS, SPACING, BORDER_RADIUS, SHADOWS } = theme;
 
 export default function MedicalRecordScreen() {
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState("records");
   const [records, setRecords] = useState([]);
-  const [tests, setTests] = useState([]);
+  const [testGroups, setTestGroups] = useState([]); // Đã gộp theo lần khám
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -47,6 +38,7 @@ export default function MedicalRecordScreen() {
       const patientId = user.id;
 
       if (activeTab === "records") {
+        console.log("Đang tải bệnh án...");
         const { data, error } = await supabase
           .from("medical_records")
           .select(`
@@ -78,18 +70,77 @@ export default function MedicalRecordScreen() {
         }));
 
         setRecords(formatted);
+        console.log("Tải bệnh án thành công:", formatted.length);
       } else {
+        console.log("Đang tải và gộp kết quả xét nghiệm theo lần khám...");
         const { data, error } = await supabase
           .from("test_results")
-          .select("*")
+          .select(`
+            id,
+            test_name,
+            result_value,
+            unit,
+            reference_range,
+            note,
+            status,
+            performed_at,
+            file_url,
+            appointment_id,
+            appointments!appointment_id (appointment_date)
+          `)
           .eq("patient_id", patientId)
+          .not("performed_at", "is", null)
           .order("performed_at", { ascending: false });
 
         if (error) throw error;
-        setTests(data || []);
+
+        // GỘP THEO performed_at (ngày làm) HOẶC appointment_id
+        const grouped = data.reduce((acc, item) => {
+          const key = item.performed_at
+            ? new Date(item.performed_at).toLocaleDateString("vi-VN")
+            : item.appointment_id || item.id;
+
+          if (!acc[key]) {
+            acc[key] = {
+              date: item.performed_at
+                ? new Date(item.performed_at).toLocaleDateString("vi-VN", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })
+                : "Chưa xác định",
+              rawDate: item.performed_at || item.appointments?.appointment_date,
+              tests: [],
+              hasFile: !!item.file_url,
+              fileUrl: item.file_url,
+            };
+          }
+
+          acc[key].tests.push({
+            name: item.test_name,
+            result: item.result_value,
+            unit: item.unit,
+            range: item.reference_range,
+            note: item.note,
+            status: item.status,
+          });
+
+          // Nếu có file → ưu tiên dùng file
+          if (item.file_url) {
+            acc[key].hasFile = true;
+            acc[key].fileUrl = item.file_url;
+          }
+
+          return acc;
+        }, {});
+
+        const result = Object.values(grouped).sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+        setTestGroups(result);
+        console.log("Đã gộp thành công:", result.length, "lần làm xét nghiệm");
       }
     } catch (err) {
-      console.error("Lỗi tải bệnh án:", err);
+      console.error("Lỗi tải dữ liệu:", err);
     } finally {
       setLoading(false);
       if (isRefresh) setRefreshing(false);
@@ -106,25 +157,53 @@ export default function MedicalRecordScreen() {
   };
 
   const openFile = async (url) => {
-    if (!url) return;
-    try {
-      if (url.toLowerCase().includes(".pdf")) {
-        Linking.openURL(url);
-      } else {
-        const filename = url.split("/").pop();
-        const result = await FileSystem.downloadAsync(url, FileSystem.documentDirectory + filename);
-        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
-      }
-    } catch (e) {
-      console.log("Lỗi mở file:", e);
+  if (!url) {
+    Alert.alert("Thông báo", "Chưa có file kết quả");
+    return;
+  }
+
+  console.log("Đang mở file xét nghiệm:", url);
+
+  try {
+    // BƯỚC 1: Kiểm tra xem có thể mở trực tiếp bằng app PDF không (nhanh nhất)
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+      console.log("Mở bằng app PDF thành công");
+      return;
     }
-  };
+
+    // BƯỚC 2: Nếu không mở được → tải về + chia sẻ (cho Android + iOS cũ)
+    console.log("Không mở trực tiếp được → tải về thiết bị...");
+    const filename = url.split("/").pop() || `ketqua_${Date.now()}.pdf`;
+    const localUri = `${FileSystem.documentDirectory}${filename}`;
+
+    const downloadRes = await FileSystem.downloadAsync(url, localUri);
+    console.log("Tải về thành công:", downloadRes.uri);
+
+    if (!(await Sharing.isAvailableAsync())) {
+      Alert.alert("Lỗi", "Thiết bị không hỗ trợ chia sẻ file");
+      return;
+    }
+
+    await Sharing.shareAsync(downloadRes.uri, {
+      mimeType: "application/pdf",
+      dialogTitle: "Kết quả xét nghiệm",
+      UTI: "com.adobe.pdf", // cho iOS
+    });
+
+    console.log("Chia sẻ file thành công");
+  } catch (error) {
+    console.error("Lỗi mở file:", error);
+    Alert.alert("Lỗi", "Không thể mở file. Vui lòng thử lại sau.");
+  }
+};
 
   if (loading && !refreshing) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Đang tải bệnh án...</Text>
+        <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
       </View>
     );
   }
@@ -133,7 +212,6 @@ export default function MedicalRecordScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-      {/* HEADER */}
       <LinearGradient colors={GRADIENTS.header} style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={26} color="#FFF" />
@@ -142,19 +220,27 @@ export default function MedicalRecordScreen() {
         <View style={{ width: 50 }} />
       </LinearGradient>
 
-      {/* TABS */}
       <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, activeTab === "records" && styles.tabActive]} onPress={() => setActiveTab("records")}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "records" && styles.tabActive]}
+          onPress={() => setActiveTab("records")}
+        >
           <Ionicons name="document-text" size={20} color={activeTab === "records" ? "#FFF" : "#64748B"} />
-          <Text style={[styles.tabText, activeTab === "records" && styles.tabTextActive]}>Bệnh án ({records.length})</Text>
+          <Text style={[styles.tabText, activeTab === "records" && styles.tabTextActive]}>
+            Bệnh án ({records.length})
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, activeTab === "tests" && styles.tabActive]} onPress={() => setActiveTab("tests")}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "tests" && styles.tabActive]}
+          onPress={() => setActiveTab("tests")}
+        >
           <Ionicons name="flask" size={20} color={activeTab === "tests" ? "#FFF" : "#64748B"} />
-          <Text style={[styles.tabText, activeTab === "tests" && styles.tabTextActive]}>Xét nghiệm ({tests.length})</Text>
+          <Text style={[styles.tabText, activeTab === "tests" && styles.tabTextActive]}>
+            Xét nghiệm ({testGroups.length})
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* NỘI DUNG */}
       {activeTab === "records" ? (
         <FlatList
           data={records}
@@ -189,23 +275,13 @@ export default function MedicalRecordScreen() {
                   </View>
                 )}
 
-                {item.treatment && (
-                  <View style={styles.section}>
-                    <Text style={styles.label}>Điều trị</Text>
-                    <Text style={styles.text}>{item.treatment}</Text>
-                  </View>
-                )}
-
-                {/* ĐƠN THUỐC CHI TIẾT – SIÊU ĐẸP */}
-                {item.prescriptions && item.prescriptions.length > 0 && (
+                {item.prescriptions?.length > 0 && (
                   <View style={styles.section}>
                     <Text style={styles.label}>Đơn thuốc ({item.prescriptions.length} thuốc)</Text>
                     {item.prescriptions.map((med, i) => (
                       <View key={i} style={styles.medicineItem}>
                         <Text style={styles.medicineName}>• {med.medicine_name}</Text>
-                        <Text style={styles.medicineDetail}>
-                          {med.dosage} • {med.duration}
-                        </Text>
+                        <Text style={styles.medicineDetail}>{med.dosage} • {med.duration}</Text>
                       </View>
                     ))}
                   </View>
@@ -222,10 +298,9 @@ export default function MedicalRecordScreen() {
           )}
         />
       ) : (
-        // Tab Xét nghiệm giữ nguyên
         <FlatList
-          data={tests}
-          keyExtractor={(item) => item.id.toString()}
+          data={testGroups}
+          keyExtractor={(item, i) => i.toString()}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
@@ -236,20 +311,38 @@ export default function MedicalRecordScreen() {
           }
           renderItem={({ item, index }) => (
             <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
-              <TouchableOpacity style={[styles.testCard, item.status === "abnormal" && styles.testWarning]} onPress={() => item.file_url && openFile(item.file_url)} activeOpacity={0.9}>
-                <View style={styles.testHeader}>
-                  <Text style={styles.testName}>{item.test_name}</Text>
-                  {item.status === "abnormal" ? <Ionicons name="warning" size={28} color={COLORS.warning} /> : item.status === "critical" ? <Ionicons name="alert-circle" size={28} color={COLORS.danger} /> : <Ionicons name="checkmark-circle" size={28} color={COLORS.success} />}
+              <TouchableOpacity
+                style={styles.testGroupCard}
+                onPress={() => item.hasFile && openFile(item.fileUrl)}
+                activeOpacity={item.hasFile ? 0.8 : 1}
+              >
+                <View style={styles.testGroupHeader}>
+                  <Text style={styles.testGroupDate}>{item.date}</Text>
+                  {item.hasFile ? (
+                    <View style={styles.fileBadge}>
+                      <Ionicons name="document-attach" size={20} color={COLORS.primary} />
+                      <Text style={styles.fileBadgeText}>Có file PDF</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.testCount}>{item.tests.length} kết quả</Text>
+                  )}
                 </View>
-                <Text style={styles.result}>
-                  {item.result_value} {item.unit}
-                  {item.reference_range && <Text style={styles.normalRange}> (Bình thường: {item.reference_range})</Text>}
-                </Text>
-                {item.file_url && (
-                  <View style={styles.fileTag}>
-                    <Ionicons name="document-attach" size={18} color={COLORS.primary} />
-                    <Text style={styles.fileText}>Xem file PDF</Text>
-                  </View>
+
+                <View style={styles.testList}>
+                  {item.tests.slice(0, 3).map((t, i) => (
+                    <Text key={i} style={styles.testItem}>
+                      • {t.name}: <Text style={{ fontWeight: "600", color: t.status === "abnormal" ? COLORS.warning : COLORS.textPrimary }}>
+                        {t.result} {t.unit}
+                      </Text>
+                    </Text>
+                  ))}
+                  {item.tests.length > 3 && (
+                    <Text style={styles.moreTests}>+ {item.tests.length - 3} kết quả khác</Text>
+                  )}
+                </View>
+
+                {item.hasFile && (
+                  <Text style={styles.tapToView}>Nhấn để xem file PDF</Text>
                 )}
               </TouchableOpacity>
             </Animated.View>
@@ -260,8 +353,70 @@ export default function MedicalRecordScreen() {
   );
 }
 
-// STYLE ĐÃ BỔ SUNG CHO ĐƠN THUỐC
+// Thêm style cho nhóm xét nghiệm
 const styles = {
+  // ... giữ nguyên tất cả style cũ, chỉ bổ sung thêm:
+  testGroupCard: {
+    backgroundColor: "#FFF",
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.card,
+    borderLeftWidth: 5,
+    borderLeftColor: COLORS.primary + "40",
+  },
+  testGroupHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  testGroupDate: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+  testCount: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    fontWeight: "600",
+  },
+  fileBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.primary + "15",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  fileBadgeText: {
+    marginLeft: 6,
+    color: COLORS.primary,
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  testList: {
+    marginTop: 8,
+  },
+  testItem: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    marginVertical: 4,
+  },
+  moreTests: {
+    marginTop: 8,
+    color: COLORS.primary,
+    fontWeight: "600",
+    fontStyle: "italic",
+  },
+  tapToView: {
+    marginTop: 12,
+    color: COLORS.primary,
+    fontSize: 14,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  // ... các style cũ giữ nguyên
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: Platform.OS === "ios" ? 60 : 40, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.lg, borderBottomLeftRadius: BORDER_RADIUS.xxxl },
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.25)", justifyContent: "center", alignItems: "center" },
@@ -282,14 +437,6 @@ const styles = {
   medicineItem: { marginTop: 10, padding: 12, backgroundColor: "#F0FDF4", borderRadius: BORDER_RADIUS.lg, borderLeftWidth: 4, borderLeftColor: COLORS.success },
   medicineName: { fontSize: 16, fontWeight: "bold", color: COLORS.textPrimary },
   medicineDetail: { fontSize: 15, color: "#16A34A", marginTop: 4 },
-  testCard: { backgroundColor: "#FFF", borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.lg, ...SHADOWS.card },
-  testWarning: { borderLeftWidth: 5, borderLeftColor: COLORS.warning },
-  testHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  testName: { fontSize: 17, fontWeight: "bold", color: COLORS.textPrimary },
-  result: { fontSize: 16, color: COLORS.textSecondary, marginTop: 6 },
-  normalRange: { fontSize: 14, color: "#94A3B8" },
-  fileTag: { flexDirection: "row", alignItems: "center", marginTop: 12, backgroundColor: COLORS.primary + "15", paddingHorizontal: 12, paddingVertical: 8, borderRadius: BORDER_RADIUS.lg, alignSelf: "flex-start" },
-  fileText: { marginLeft: 6, color: COLORS.primary, fontWeight: "600" },
   loading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" },
   loadingText: { marginTop: 12, fontSize: 16, color: COLORS.textSecondary },
   empty: { alignItems: "center", marginTop: 100 },

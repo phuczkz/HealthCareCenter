@@ -42,47 +42,48 @@ export class AppointmentController {
   /**
    * HỦY LỊCH HẸN – DÙNG TRONG HistoryScreen
    */
-  static async cancelAppointment(appointmentId, setAppointments, setError) {
-    const safeSetError = setError || (() => {});
+  // Trong AppointmentService.js
+static async cancelAppointment(appointmentId, cancelledBy = 'patient') {
+  try {
+    // LẤY THÔNG TIN LỊCH TRƯỚC KHI HỦY
+    const { data: appointment, error: fetchError } = await supabase
+      .from('appointments')
+      .select('status')
+      .eq('id', appointmentId)
+      .single();
 
-    if (!appointmentId) {
-      const msg = 'Không tìm thấy lịch hẹn để hủy.';
-      safeSetError(msg);
-      return { success: false, message: msg };
+    if (fetchError) throw fetchError;
+    if (!appointment) throw new Error('Lịch hẹn không tồn tại');
+
+    // CẤM HỦY NẾU ĐÃ HOÀN THÀNH HOẶC ĐÃ HỦY
+    if (appointment.status === 'completed') {
+      return { success: false, message: 'Không thể hủy lịch đã hoàn thành' };
+    }
+    if (['cancelled', 'patient_cancelled', 'doctor_cancelled'].includes(appointment.status)) {
+      return { success: false, message: 'Lịch hẹn đã bị hủy trước đó' };
     }
 
-    try {
-      const result = await AppointmentService.cancelAppointment(appointmentId, 'patient');
+    // TIẾN HÀNH HỦY
+    const { data, error } = await supabase
+      .from('appointments')
+      .update({
+        status: cancelledBy === 'doctor' ? 'doctor_cancelled' : 'patient_cancelled',
+        cancelled_by: { 
+          by: cancelledBy, 
+          reason: cancelledBy === 'doctor' ? 'Bác sĩ hủy' : 'Bệnh nhân hủy qua app',
+          at: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', appointmentId)
+      .select()
+      .single();
 
-      if (!result.success) {
-        throw new Error(result.message || 'Hủy thất bại');
-      }
+    if (error) throw error;
 
-      // Cập nhật danh sách ngay lập tức (tối ưu trải nghiệm)
-      if (setAppointments) {
-        setAppointments(prev =>
-          prev.map(appt =>
-            appt.id === appointmentId
-              ? {
-                  ...appt,
-                  status: 'patient_cancelled',
-                  cancelled_by: { by: 'patient', reason: 'Bệnh nhân hủy' },
-                }
-              : appt
-          )
-        );
-      }
-
-      return {
-        success: true,
-        message: 'Bạn đã hủy lịch thành công!',
-      };
-
-    } catch (error) {
-      console.error('cancelAppointment error:', error);
-      const msg = error.message || 'Hủy lịch thất bại. Vui lòng thử lại.';
-      safeSetError(msg);
-      return { success: false, message: msg };
-    }
+    return { success: true, message: 'Hủy lịch thành công!' };
+  } catch (error) {
+    console.error('cancelAppointment error:', error);
+    return { success: false, message: error.message || 'Hủy lịch thất bại' };
   }
-}
+}}

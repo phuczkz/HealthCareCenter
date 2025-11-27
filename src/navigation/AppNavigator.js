@@ -36,6 +36,7 @@ import LabHistoryScreen from '../screens/Lab_Technician/LabHistoryScreen';
 import LabDashboard from '../screens/Lab_Technician/LabDashboard';
 import LabHistoryDetail from '../screens/Lab_Technician/LabHistoryDetail';
 
+import PendingInvoicesScreen from '../screens/accountant/AccountantHomeScreen'
 // === KHÁC ===
 import PatientStack from './PatientStack';
 import ReceptionTabs from './ReceptionTabs';
@@ -88,7 +89,7 @@ export default function AppNavigator() {
       <Stack.Screen name="PatientStack" component={PatientStack} />
       <Stack.Screen name="ReceptionTabs" component={ReceptionTabs} />
       <Stack.Screen name="AccountantTabs" component={AccountantTabs} />
-      
+      <Stack.Screen name='PendingInvoicesScreen' component={PendingInvoicesScreen}/>
     </Stack.Navigator>
   );
 }

@@ -1,5 +1,5 @@
 // screens/doctor/FinalizeRecordScreen.js
-// MÀN KHÁM BỆNH + KÊ ĐƠN SIÊU CHUYÊN NGHIỆP (Sáng-Trưa-Chiều-Tối + Tự động tính tổng phát)
+// FINAL VERSION – HOÀN TẤT KHÁM + KÊ ĐƠN + LƯU ĐÚNG DB prescriptions
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,12 +25,11 @@ export default function FinalizeRecordScreen() {
   const { appointmentId, patientId, patientName = 'Bệnh nhân' } = route.params || {};
 
   const [diagnosis, setDiagnosis] = useState('');
-  useState('');
   const [treatment, setTreatment] = useState('');
   const [notes, setNotes] = useState('');
   const [testResults, setTestResults] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // ĐƠN THUỐC SIÊU XỊN
   const [medicines, setMedicines] = useState([
     {
       id: Date.now(),
@@ -37,7 +37,6 @@ export default function FinalizeRecordScreen() {
       query: '',
       suggestions: [],
       show: false,
-      isSelected: false,
       morning: '1',
       noon: '0',
       afternoon: '1',
@@ -51,7 +50,7 @@ export default function FinalizeRecordScreen() {
 
   useEffect(() => {
     if (!appointmentId || !patientId) {
-      Alert.alert('Lỗi', 'Thiếu thông tin');
+      Alert.alert('Lỗi', 'Thiếu thông tin cuộc hẹn');
       navigation.goBack();
       return;
     }
@@ -59,22 +58,35 @@ export default function FinalizeRecordScreen() {
   }, []);
 
   const loadData = async () => {
-    await Promise.all([fetchTestResults(), fetchMedicines()]);
+    try {
+      await Promise.all([fetchTestResults(), fetchMedicines()]);
+    } catch (err) {
+      Alert.alert('Lỗi', 'Không thể tải dữ liệu');
+    }
   };
 
   const fetchTestResults = async () => {
-    const { data } = await supabase.from('test_results').select('*').eq('appointment_id', appointmentId);
+    const { data } = await supabase
+      .from('test_results')
+      .select('*')
+      .eq('appointment_id', appointmentId);
     setTestResults(data || []);
   };
 
   const fetchMedicines = async () => {
-    const { data } = await supabase.from('medicines').select('name, generic_name, dosage, form, price').order('name');
+    const { data } = await supabase
+      .from('medicines')
+      .select('name, generic_name, dosage, form, price')
+      .order('name');
     setAllMedicines(data || []);
   };
 
-  // Tính tổng số lượng cần phát
   const calculateTotalQuantity = (med) => {
-    const dosesPerDay = Number(med.morning) + Number(med.noon) + Number(med.afternoon) + Number(med.evening);
+    const dosesPerDay = 
+      Number(med.morning || 0) + 
+      Number(med.noon || 0) + 
+      Number(med.afternoon || 0) + 
+      Number(med.evening || 0);
     const perDose = Number(med.quantityPerDose) || 1;
     const days = Number(med.days) || 1;
     return dosesPerDay * perDose * days;
@@ -98,7 +110,10 @@ export default function FinalizeRecordScreen() {
       return;
     }
     const filtered = allMedicines
-      .filter(m => m.name?.toLowerCase().includes(text.toLowerCase()) || m.generic_name?.toLowerCase().includes(text.toLowerCase()))
+      .filter(m => 
+        m.name?.toLowerCase().includes(text.toLowerCase()) || 
+        m.generic_name?.toLowerCase().includes(text.toLowerCase())
+      )
       .slice(0, 8);
     updateMedicine(index, 'suggestions', filtered);
     updateMedicine(index, 'show', true);
@@ -113,7 +128,6 @@ export default function FinalizeRecordScreen() {
         query: med.name,
         suggestions: [],
         show: false,
-        isSelected: true,
         morning: '1', noon: '0', afternoon: '1', evening: '0',
         quantityPerDose: '1',
         days: '7',
@@ -126,7 +140,7 @@ export default function FinalizeRecordScreen() {
   const addMedicine = () => {
     setMedicines(prev => [...prev, {
       id: Date.now() + Math.random(),
-      name: '', query: '', suggestions: [], show: false, isSelected: false,
+      name: '', query: '', suggestions: [], show: false,
       morning: '1', noon: '0', afternoon: '1', evening: '0',
       quantityPerDose: '1', days: '7', totalQuantity: 14,
     }]);
@@ -137,35 +151,94 @@ export default function FinalizeRecordScreen() {
     setMedicines(prev => prev.filter((_, i) => i !== index));
   };
 
-  const goToPaymentSummary = () => {
+  // HOÀN TẤT + LƯU BỆNH ÁN + ĐƠN THUỐC → CHUYỂN THANH TOÁN
+  const finalizeAndGoToPayment = async () => {
     if (!diagnosis.trim()) {
       return Alert.alert('Lỗi', 'Vui lòng nhập chẩn đoán chính thức');
     }
 
-    navigation.navigate('PaymentSummaryScreen', {
-      appointmentId,
-      patientId,
-      patientName,
-      diagnosis: diagnosis.trim(),
-      treatment: treatment.trim() || null,
-      notes: notes.trim() || null,
-      medicines: medicines.filter(m => m.name.trim()).map(m => ({
-        name: m.name,
-        morning: m.morning,
-        noon: m.noon,
-        afternoon: m.afternoon,
-        evening: m.evening,
-        quantityPerDose: m.quantityPerDose,
-        days: m.days,
-        totalQuantity: m.totalQuantity,
-      })),
-    });
+    setLoading(true);
+
+    try {
+      // 1. Tạo / Cập nhật bệnh án
+      let recordId;
+      const { data: existingRecord } = await supabase
+        .from('medical_records')
+        .select('id')
+        .eq('appointment_id', appointmentId)
+        .maybeSingle();
+
+      if (existingRecord) {
+        recordId = existingRecord.id;
+        await supabase
+          .from('medical_records')
+          .update({
+            diagnosis: diagnosis.trim(),
+            treatment: treatment.trim() || null,
+            notes: notes.trim() || null,
+          })
+          .eq('id', recordId);
+      } else {
+        const { data: newRecord } = await supabase
+          .from('medical_records')
+          .insert({
+            patient_id: patientId,
+            appointment_id: appointmentId,
+            diagnosis: diagnosis.trim(),
+            treatment: treatment.trim() || null,
+            notes: notes.trim() || null,
+          })
+          .select('id')
+          .single();
+        recordId = newRecord.id;
+      }
+
+      // 2. Lưu đơn thuốc vào bảng prescriptions
+      const validMedicines = medicines
+        .filter(m => m.name.trim())
+        .map(m => ({
+          record_id: recordId,
+          medicine_name: m.name.trim(),
+          dosage: `${m.quantityPerDose} viên x ${(Number(m.morning) + Number(m.noon) + Number(m.afternoon) + Number(m.evening))} lần/ngày`,
+          duration: `${m.days} ngày`,
+          morning: m.morning,
+          noon: m.noon,
+          afternoon: m.afternoon,
+          evening: m.evening,
+          quantity_per_dose: Number(m.quantityPerDose) || 1,
+          total_quantity: m.totalQuantity,
+        }));
+
+      if (validMedicines.length > 0) {
+        const { error } = await supabase
+          .from('prescriptions')
+          .insert(validMedicines);
+        if (error) throw error;
+      }
+
+      // 3. Chuyển sang thanh toán
+      navigation.replace('PaymentSummaryScreen', {
+        appointmentId,
+        patientId,
+        patientName,
+        diagnosis: diagnosis.trim(),
+        treatment: treatment.trim() || null,
+        notes: notes.trim() || null,
+      });
+
+    } catch (err) {
+      console.error('Lỗi hoàn tất:', err);
+      Alert.alert('Lỗi', err.message || 'Không thể hoàn tất. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle="light-content" backgroundColor="#7C2D12" />
 
+      {/* HEADER */}
       <LinearGradient colors={['#7C2D12', '#4C1D0A']} style={{ paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -180,7 +253,7 @@ export default function FinalizeRecordScreen() {
         </Text>
       </LinearGradient>
 
-      <ScrollView style={{ flex: 1, backgroundColor: '#FFFBFE' }} contentContainerStyle={{ padding: 20 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: '#FFFBFE' }} contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
 
         {/* KẾT QUẢ XÉT NGHIỆM */}
         {testResults.length > 0 && (
@@ -222,16 +295,15 @@ export default function FinalizeRecordScreen() {
 
           {medicines.map((med, i) => (
             <View key={med.id} style={{ marginBottom: 32, backgroundColor: '#F8FAFC', borderRadius: 16, padding: 16 }}>
-
-              {/* TÊN THUỐC */}
-              {med.isSelected ? (
+              {/* UI ĐƠN THUỐC GIỮ NGUYÊN ĐẸP LUNG LINH */}
+              {med.name ? (
                 <View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1E293B' }}>{med.name}</Text>
                     <TouchableOpacity onPress={() => {
                       setMedicines(prev => {
                         const u = [...prev];
-                        u[i].isSelected = false;
+                        u[i].name = '';
                         u[i].query = '';
                         return u;
                       });
@@ -240,7 +312,6 @@ export default function FinalizeRecordScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  {/* LIỀU THEO BUỔI */}
                   <Text style={{ fontSize: 16, fontWeight: '600', marginTop: 16, marginBottom: 8 }}>Uống theo buổi:</Text>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
                     {['morning', 'noon', 'afternoon', 'evening'].map((time, idx) => (
@@ -258,29 +329,17 @@ export default function FinalizeRecordScreen() {
                     ))}
                   </View>
 
-                  {/* SỐ VIÊN + SỐ NGÀY */}
                   <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, marginBottom: 4 }}>Số viên/lần</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={med.quantityPerDose}
-                        onChangeText={t => updateMedicine(i, 'quantityPerDose', t)}
-                        keyboardType="numeric"
-                      />
+                      <TextInput style={styles.input} value={med.quantityPerDose} onChangeText={t => updateMedicine(i, 'quantityPerDose', t)} keyboardType="numeric" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, marginBottom: 4 }}>Số ngày</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={med.days}
-                        onChangeText={t => updateMedicine(i, 'days', t)}
-                        keyboardType="numeric"
-                      />
+                      <TextInput style={styles.input} value={med.days} onChangeText={t => updateMedicine(i, 'days', t)} keyboardType="numeric" />
                     </View>
                   </View>
 
-                  {/* TỔNG SỐ LƯỢNG */}
                   <View style={{ backgroundColor: '#DCFCE7', padding: 16, borderRadius: 12, alignItems: 'center' }}>
                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#166534' }}>
                       Tổng phát: {med.totalQuantity} viên
@@ -294,7 +353,6 @@ export default function FinalizeRecordScreen() {
                   )}
                 </View>
               ) : (
-                /* TÌM KIẾM THUỐC */
                 <View>
                   <View style={styles.searchBox}>
                     <Ionicons name="search" size={22} color="#94A3B8" />
@@ -333,18 +391,25 @@ export default function FinalizeRecordScreen() {
         {/* DẶN DÒ */}
         <View style={styles.card}>
           <Text style={styles.label}>Dặn dò bệnh nhân</Text>
-          <TextInput style={styles.textArea} placeholder="Uống nhiều nước..." value={treatment} onChangeText={setTreatment} multiline />
+          <TextInput style={styles.textArea} placeholder="Uống nhiều nước, nghỉ ngơi..." value={treatment} onChangeText={setTreatment} multiline />
         </View>
 
-        {/* NÚT TIẾP TỤC THANH TOÁN */}
-        <TouchableOpacity onPress={goToPaymentSummary}>
-          <LinearGradient colors={['#16A34A', '#15803D']} style={styles.paymentBtn}>
-            <Ionicons name="cash" size={36} color="#fff" />
-            <Text style={styles.paymentText}>TIẾP TỤC THANH TOÁN →</Text>
+        {/* NÚT HOÀN TẤT */}
+        <TouchableOpacity onPress={finalizeAndGoToPayment} disabled={loading}>
+          <LinearGradient
+            colors={loading ? ['#94A3B8', '#64748B'] : ['#16A34A', '#15803D']}
+            style={styles.paymentBtn}
+          >
+            {loading ? (
+              <ActivityIndicator size="large" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={36} color="#fff" />
+                <Text style={styles.paymentText}>HOÀN TẤT & THANH TOÁN</Text>
+              </>
+            )}
           </LinearGradient>
         </TouchableOpacity>
-
-        <View style={{ height: 100 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

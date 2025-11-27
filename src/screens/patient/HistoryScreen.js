@@ -1,4 +1,6 @@
 // src/screens/patient/HistoryScreen.js
+// FINAL: ĐÃ HOÀN THÀNH → KHÔNG CÒN NÚT HỦY NỮA – SIÊU SẠCH!
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -24,13 +26,15 @@ const Colors = {
   confirmed: '#00D778',
   pending: '#FFB800',
   cancelled: '#FF3B30',
+  completed: '#7C3AED',
   bg: '#F8FAFF',
 };
 
 const TABS = [
-  { key: 'confirmed', title: 'Đã xác nhận', icon: 'checkmark-circle', color: '#00D778' },
-  { key: 'pending',   title: 'Chờ duyệt',   icon: 'time',             color: '#FFB800' },
-  { key: 'cancelled', title: 'Đã hủy',      icon: 'close-circle',     color: '#FF3B30' },
+  { key: 'confirmed', title: 'Đã xác nhận',   icon: 'checkmark-circle', color: Colors.confirmed },
+  { key: 'pending',   title: 'Chờ duyệt',     icon: 'time',             color: Colors.pending },
+  { key: 'completed', title: 'Đã hoàn thành', icon: 'medkit',           color: Colors.completed },
+  { key: 'cancelled', title: 'Đã hủy',        icon: 'close-circle',     color: Colors.cancelled },
 ];
 
 export default function HistoryScreen() {
@@ -70,8 +74,12 @@ export default function HistoryScreen() {
   const filteredAppointments = appointments.filter(app => {
     if (activeTab === 'confirmed') return app.status === 'confirmed';
     if (activeTab === 'pending') return app.status === 'pending';
+    if (activeTab === 'completed') return app.status === 'completed';
     return ['cancelled', 'doctor_cancelled', 'patient_cancelled'].includes(app.status);
   });
+
+  // CHỈ CHO PHÉP HỦY KHI status = confirmed HOẶC pending
+  const canCancel = (status) => ['confirmed', 'pending'].includes(status);
 
   const handleCancel = async (id) => {
     Alert.alert(
@@ -99,6 +107,7 @@ export default function HistoryScreen() {
   const getCount = (key) => {
     if (key === 'confirmed') return appointments.filter(a => a.status === 'confirmed').length;
     if (key === 'pending') return appointments.filter(a => a.status === 'pending').length;
+    if (key === 'completed') return appointments.filter(a => a.status === 'completed').length;
     return appointments.filter(a => ['cancelled', 'doctor_cancelled', 'patient_cancelled'].includes(a.status)).length;
   };
 
@@ -143,6 +152,7 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
+      {/* HEADER */}
       <LinearGradient colors={Colors.gradient} style={styles.header}>
         <TouchableOpacity onPress={() => navigation.canGoBack() && navigation.goBack()}>
           <Ionicons name="arrow-back" size={28} color="#fff" />
@@ -153,6 +163,7 @@ export default function HistoryScreen() {
         </TouchableOpacity>
       </LinearGradient>
 
+      {/* TABS */}
       <View style={styles.tabContainer}>
         <FlatList
           data={TABS}
@@ -165,16 +176,31 @@ export default function HistoryScreen() {
         />
       </View>
 
+      {/* NỘI DUNG */}
       <View style={styles.content}>
         {filteredAppointments.length === 0 ? (
           <Animated.View entering={ZoomIn.duration(600)} style={styles.empty}>
-            <Ionicons name="calendar-clear-outline" size={90} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>Chưa có lịch hẹn</Text>
-            <Text style={styles.emptySubtitle}>
-              {activeTab === 'confirmed' && 'Bạn chưa có lịch khám được duyệt'}
-              {activeTab === 'pending' && 'Không có lịch đang chờ xác nhận'}
+            <Ionicons
+              name={
+                activeTab === 'completed' ? "document-text-outline" :
+                activeTab === 'confirmed' ? "calendar-outline" :
+                activeTab === 'pending' ? "hourglass-outline" :
+                "close-circle-outline"
+              }
+              size={90}
+              color="#cbd5e1"
+            />
+            <Text style={styles.emptyTitle}>
+              {activeTab === 'completed' && 'Chưa có buổi khám nào hoàn tất'}
+              {activeTab === 'confirmed' && 'Chưa có lịch được duyệt'}
+              {activeTab === 'pending' && 'Không có lịch đang chờ'}
               {activeTab === 'cancelled' && 'Bạn chưa từng hủy lịch nào'}
             </Text>
+            {activeTab === 'completed' && (
+              <Text style={styles.emptySubtitle}>
+                Sau khi bác sĩ hoàn tất khám, lịch sẽ xuất hiện ở đây
+              </Text>
+            )}
           </Animated.View>
         ) : (
           <FlatList
@@ -182,7 +208,11 @@ export default function HistoryScreen() {
             keyExtractor={item => item.id.toString()}
             renderItem={({ item, index }) => (
               <Animated.View entering={FadeInDown.delay(index * 80).springify()}>
-                <AppointmentCard item={item} onCancel={handleCancel} />
+                <AppointmentCard
+                  item={item}
+                  // HOÀN THÀNH / ĐÃ HỦY → KHÔNG TRUYỀN onCancel → NÚT HỦY BIẾN MẤT HOÀN TOÀN
+                  onCancel={canCancel(item.status) ? () => handleCancel(item.id) : undefined}
+                />
               </Animated.View>
             )}
             refreshControl={
@@ -224,6 +254,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.bg },
   loadingText: { marginTop: 16, fontSize: 16, color: '#64748B', fontWeight: '600' },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 23, fontWeight: '800', color: '#1e293b', marginTop: 20 },
+  emptyTitle: { fontSize: 23, fontWeight: '800', color: '#1e293b', marginTop: 20, textAlign: 'center' },
   emptySubtitle: { fontSize: 16, color: '#64748b', textAlign: 'center', marginTop: 12, lineHeight: 24 },
 });

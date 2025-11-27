@@ -1,20 +1,31 @@
 // screens/doctor/PaymentSummaryScreen.js
-// MÀN TÍNH TỔNG TIỀN + BẬT/TẮT MUA THUỐC + HOÀN TẤT – ĐÃ FIX LỖI TOUCHABLEOPACITY
+// FIX: CARD TỔNG TIỀN ĐÃ ĐƯỢC DỊCH XUỐNG ĐẸP, KHÔNG CÒN DÍNH HEADER
 
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  Switch,
   Alert,
   ActivityIndicator,
   ScrollView,
-  TouchableOpacity,   // ĐÃ THÊM DÒNG NÀY → FIX LỖI 100%
+  TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../api/supabase';
+
+// Theme
+import theme from '../../theme/theme';
+const {
+  COLORS,
+  GRADIENTS,
+  SPACING,
+  FONT_SIZE,
+  FONT_WEIGHT,
+  BORDER_RADIUS,
+  SHADOWS,
+} = theme;
 
 export default function PaymentSummaryScreen() {
   const navigation = useNavigation();
@@ -26,23 +37,18 @@ export default function PaymentSummaryScreen() {
     diagnosis,
     treatment,
     notes,
-    medicines = [] // phòng trường hợp null
   } = route.params || {};
 
-  const [includeMedicine, setIncludeMedicine] = useState(true);
   const [loading, setLoading] = useState(false);
   const [examFee, setExamFee] = useState(200000);
   const [testFee, setTestFee] = useState(0);
-  const [medicineFee, setMedicineFee] = useState(0);
 
-  // Tính lại mỗi khi bật/tắt mua thuốc
   useEffect(() => {
-    calculateAll();
-  }, [includeMedicine]);
+    calculateFees();
+  }, []);
 
-  const calculateAll = async () => {
+  const calculateFees = async () => {
     try {
-      // 1. Tiền khám
       const { data: appt } = await supabase
         .from('appointments')
         .select('service_id')
@@ -58,42 +64,26 @@ export default function PaymentSummaryScreen() {
         setExamFee(svc?.price || 200000);
       }
 
-      // 2. Tiền xét nghiệm
       const { data: tests } = await supabase
         .from('test_results')
         .select('price')
         .eq('appointment_id', appointmentId);
-      setTestFee(tests?.reduce((sum, t) => sum + (Number(t.price) || 0), 0) || 0);
 
-      // 3. Tiền thuốc
-      if (medicines.length > 0 && includeMedicine) {
-        const names = medicines.map(m => m.name);
-        const { data } = await supabase
-          .from('medicines')
-          .select('name, price')
-          .in('name', names);
-
-        const priceMap = {};
-        data?.forEach(item => priceMap[item.name] = Number(item.price || 0));
-
-        const total = medicines.reduce((sum, m) => sum + (priceMap[m.name] || 0), 0);
-        setMedicineFee(total);
-      } else {
-        setMedicineFee(0);
-      }
+      const totalTestFee = tests?.reduce((sum, t) => sum + (Number(t.price) || 0), 0) || 0;
+      setTestFee(totalTestFee);
     } catch (err) {
-      console.error('Lỗi tính tiền:', err);
+      console.error('Lỗi tính phí:', err);
     }
   };
 
-  const totalAmount = examFee + testFee + (includeMedicine ? medicineFee : 0);
+  const totalAmount = examFee + testFee;
 
   const finalizeAll = async () => {
     if (loading) return;
     setLoading(true);
 
     try {
-      // 1. Tạo/cập nhật bệnh án
+      // Tạo/cập nhật bệnh án
       let { data: record } = await supabase
         .from('medical_records')
         .select('id')
@@ -120,147 +110,183 @@ export default function PaymentSummaryScreen() {
           .eq('id', record.id);
       }
 
-      // 2. Lưu đơn thuốc
-      if (medicines.length > 0) {
-        const payload = medicines.map(m => ({
-          record_id: record.id,
-          medicine_name: m.name,
-          dosage: m.dosage || null,
-          duration: m.duration || null,
-        }));
-        await supabase.from('prescriptions').insert(payload);
-      }
-
-      // 3. Tạo hóa đơn
+      // Tạo hóa đơn
       await supabase.from('invoices').insert({
         appointment_id: appointmentId,
         exam_fee: examFee,
         test_fee: testFee,
-        medicine_fee: includeMedicine ? medicineFee : 0,
+        medicine_fee: 0,
         total_amount: totalAmount,
       });
 
-      // 4. Ẩn bệnh án + hoàn tất lịch hẹn
+      // Hoàn tất
       await Promise.all([
         supabase.from('medical_records').update({ is_visible_to_patient: false }).eq('appointment_id', appointmentId),
         supabase.from('appointments').update({ status: 'completed' }).eq('id', appointmentId),
       ]);
 
       Alert.alert(
-        'HOÀN TẤT!',
+        'Thành công!',
         `Hóa đơn đã được tạo thành công!\nTổng tiền: ${totalAmount.toLocaleString()} ₫`,
-        [{ text: 'OK', onPress: () => navigation.replace('DoctorMain') }]
+        [{ text: 'OK', onPress: () => navigation.replace('DoctorAppointments') }]
       );
     } catch (err) {
       console.error('Lỗi hoàn tất:', err);
-      Alert.alert('Lỗi', err.message || 'Không thể hoàn tất. Vui lòng thử lại.');
+      Alert.alert('Lỗi', err.message || 'Đã có lỗi xảy ra.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#FFFBFE' }}>
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+
       {/* HEADER */}
-      <LinearGradient colors={['#7C2D12', '#4C1D0A']} style={{ paddingTop: 50, paddingBottom: 30, paddingHorizontal: 20 }}>
-        <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#fff', textAlign: 'center' }}>
-          TỔNG KẾT THANH TOÁN
+      <LinearGradient colors={GRADIENTS.header} style={{ paddingTop: 55, paddingBottom: 32 }}>
+        <Text style={{
+          fontSize: 26,
+          fontWeight: FONT_WEIGHT.heavy,
+          color: COLORS.textOnPrimary,
+          textAlign: 'center',
+          letterSpacing: 0.3,
+        }}>
+          Tổng kết thanh toán
         </Text>
-        <Text style={{ color: '#FECACA', fontSize: 18, textAlign: 'center', marginTop: 10 }}>
+        <Text style={{
+          fontSize: 18,
+          color: COLORS.textOnPrimary,
+          textAlign: 'center',
+          marginTop: 6,
+          opacity: 0.95,
+          fontWeight: FONT_WEIGHT.medium,
+        }}>
           {patientName || 'Bệnh nhân'}
         </Text>
       </LinearGradient>
 
-      <View style={{ padding: 20 }}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
 
-        {/* CARD TỔNG TIỀN SIÊU ĐẸP */}
-        <View style={{
-          backgroundColor: '#DCFCE7',
-          borderRadius: 24,
-          padding: 28,
-          marginBottom: 30,
-          borderWidth: 4,
-          borderColor: '#22C55E',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.3,
-          shadowRadius: 20,
-          elevation: 15,
-        }}>
-          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#166534', textAlign: 'center', marginBottom: 24 }}>
-            TỔNG TIỀN PHẢI THU
-          </Text>
-
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-            <Text style={{ fontSize: 20 }}>Tiền khám</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold' }}>{examFee.toLocaleString()} ₫</Text>
-          </View>
-
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-            <Text style={{ fontSize: 20 }}>Tiền xét nghiệm</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold' }}>{testFee.toLocaleString()} ₫</Text>
-          </View>
-
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 }}>
-            <Text style={{ fontSize: 20 }}>Tiền thuốc</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: includeMedicine ? '#166534' : '#DC2626' }}>
-              {(includeMedicine ? medicineFee : 0).toLocaleString()} ₫
+        {/* CARD TỔNG TIỀN – ĐÃ ĐƯỢC DỊCH XUỐNG ĐẸP, CÓ KHOẢNG THỞ */}
+        <View style={{ paddingHorizontal: SPACING.xl, marginTop: SPACING.xxl }}>
+          <View style={{
+            backgroundColor: COLORS.surface,
+            borderRadius: BORDER_RADIUS.xxl,
+            paddingVertical: 36,
+            paddingHorizontal: 32,
+            alignItems: 'center',
+            ...SHADOWS.floating,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+          }}>
+            <Text style={{
+              fontSize: FONT_SIZE.sm,
+              color: COLORS.textLight,
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+              fontWeight: FONT_WEIGHT.semibold,
+            }}>
+              Tổng tiền phải thu
             </Text>
-          </View>
-
-          <View style={{ height: 4, backgroundColor: '#22C55E', marginVertical: 20 }} />
-
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#166534' }}>TỔNG CỘNG</Text>
-            <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#DC2626' }}>
+            <Text style={{
+              fontSize: 48,
+              fontWeight: '900',
+              color: COLORS.primaryDark,
+              marginTop: 12,
+              letterSpacing: 0.5,
+            }}>
               {totalAmount.toLocaleString()} ₫
             </Text>
           </View>
+        </View>
 
-          {/* NÚT BẬT/TẮT MUA THUỐC */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 32 }}>
-            <Text style={{ fontSize: 22, fontWeight: '600' }}>Mua thuốc tại phòng khám?</Text>
-            <Switch
-              value={includeMedicine}
-              onValueChange={setIncludeMedicine}
-              trackColor={{ false: "#DC2626", true: "#22C55E" }}
-              thumbColor={includeMedicine ? "#166534" : "#991B1B"}
-              ios_backgroundColor="#DC2626"
-            />
+        {/* CHI TIẾT HÓA ĐƠN */}
+        <View style={{ paddingHorizontal: SPACING.xl, marginTop: SPACING.xl }}>
+          <View style={{
+            backgroundColor: COLORS.surface,
+            borderRadius: BORDER_RADIUS.xl,
+            padding: SPACING.xl,
+            ...SHADOWS.card,
+          }}>
+            <Text style={{
+              fontSize: FONT_SIZE.lg,
+              fontWeight: FONT_WEIGHT.semibold,
+              color: COLORS.textPrimary,
+              marginBottom: SPACING.lg,
+            }}>
+              Chi tiết các khoản
+            </Text>
+
+            <View style={{ gap: SPACING.lg }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: FONT_SIZE.lg, color: COLORS.textSecondary }}>
+                  Tiền khám bệnh
+                </Text>
+                <Text style={{ fontSize: FONT_SIZE.lg, fontWeight: FONT_WEIGHT.bold, color: COLORS.textPrimary }}>
+                  {examFee.toLocaleString()} ₫
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: FONT_SIZE.lg, color: COLORS.textSecondary }}>
+                  Tiền xét nghiệm
+                </Text>
+                <Text style={{
+                  fontSize: FONT_SIZE.lg,
+                  fontWeight: FONT_WEIGHT.bold,
+                  color: testFee > 0 ? COLORS.textPrimary : COLORS.textLight,
+                }}>
+                  {testFee.toLocaleString()} ₫
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* NÚT HOÀN TẤT */}
-        <TouchableOpacity onPress={finalizeAll} disabled={loading} activeOpacity={0.8}>
+      </ScrollView>
+
+      {/* NÚT HOÀN TẤT CỐ ĐỊNH DƯỚI ĐÁY */}
+      <View style={{
+        position: 'absolute',
+        bottom: 34,
+        left: SPACING.xl,
+        right: SPACING.xl,
+      }}>
+        <TouchableOpacity onPress={finalizeAll} disabled={loading}>
           <LinearGradient
-            colors={loading ? ['#94A3B8', '#64748B'] : ['#7C2D12', '#4C1D0A']}
+            colors={loading ? ['#94A3B8', '#64748B'] : GRADIENTS.primaryButton}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
             style={{
-              paddingVertical: 28,
-              borderRadius: 30,
+              paddingVertical: 18,
+              borderRadius: BORDER_RADIUS.xl,
+              flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 12 },
-              shadowOpacity: 0.4,
-              shadowRadius: 20,
-              elevation: 20,
+              ...SHADOWS.floating,
             }}
           >
             {loading ? (
               <ActivityIndicator size="large" color="#fff" />
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={40} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 26, fontWeight: 'bold', marginTop: 8 }}>
+                <Ionicons name="checkmark-circle" size={30} color="#FFF" style={{ marginRight: 12 }} />
+                <Text style={{
+                  color: '#FFF',
+                  fontSize: 20,
+                  fontWeight: FONT_WEIGHT.bold,
+                  letterSpacing: 0.5,
+                }}>
                   HOÀN TẤT & TẠO HÓA ĐƠN
                 </Text>
               </>
             )}
           </LinearGradient>
         </TouchableOpacity>
-
-        <View style={{ height: 50 }} />
       </View>
-    </ScrollView>
+
+    </View>
   );
 }

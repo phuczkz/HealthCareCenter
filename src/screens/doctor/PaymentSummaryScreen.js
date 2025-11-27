@@ -1,6 +1,3 @@
-// screens/doctor/PaymentSummaryScreen.js
-// FIX: CARD TỔNG TIỀN ĐÃ ĐƯỢC DỊCH XUỐNG ĐẸP, KHÔNG CÒN DÍNH HEADER
-
 import React, { useState, useEffect } from 'react';
 import {
   View,

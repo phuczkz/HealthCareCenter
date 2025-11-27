@@ -1,6 +1,3 @@
-// screens/doctor/FinalizeRecordScreen.js
-// FINAL VERSION – HOÀN TẤT KHÁM + KÊ ĐƠN + LƯU ĐÚNG DB prescriptions
-
 import React, { useState, useEffect } from 'react';
 import {
   View,

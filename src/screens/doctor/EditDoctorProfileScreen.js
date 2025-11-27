@@ -1,4 +1,3 @@
-// src/screens/doctor/EditDoctorProfileScreen.js
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -15,7 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-import * as FileSystem from "expo-file-system/legacy"; // GIỮ NGUYÊN NHƯ BẠN MUỐN
+import * as FileSystem from "expo-file-system/legacy";
 import { supabase } from "../../api/supabase";
 import theme from "../../theme/theme";
 

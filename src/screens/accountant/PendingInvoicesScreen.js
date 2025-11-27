@@ -1,5 +1,3 @@
-// src/screens/accountant/PendingInvoicesScreen.js
-
 import React, { useState, useEffect } from "react";
 import {
   View,

@@ -1,4 +1,3 @@
-// src/screens/doctor/ProfileScreen.js
 import React, { useState } from "react";
 import {
   View,
@@ -18,10 +17,6 @@ import { supabase } from "../../api/supabase";
 import theme from "../../theme/theme";
 
 const { COLORS, GRADIENTS, SPACING, BORDER_RADIUS, SHADOWS } = theme;
-
-/* ============================================================
-   FETCH DOCTOR PROFILE + JOIN SERVICES
-============================================================ */
 const fetchDoctorProfile = async (userId) => {
   const { data: doctorData, error: doctorError } = await supabase
     .from("doctors")

@@ -1,6 +1,3 @@
-// screens/doctor/PatientStatisticsScreen.js
-// ĐÃ FIX 100%: LOGIC SẠCH + NÚT BACK + CHỮ NHỎ LẠI + ĐẸP NHƯ APP BÁC SĨ PHƯỚC EM THẬT!
-
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,

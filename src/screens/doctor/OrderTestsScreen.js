@@ -1,5 +1,3 @@
-// screens/doctor/OrderTestsScreen.js
-
 import React, { useState } from 'react';
 import {
   View,
@@ -16,11 +14,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../api/supabase';
 
-/**
- * OrderTestsScreen
- * - Không dùng expo-linear-gradient trực tiếp để tránh lỗi runtime related to LinearGradient.map
- * - Giữ nguyên logic supabase + gửi test
- */
 export default function OrderTestsScreen({ route, navigation }) {
   const { appointmentId, patientId, patientName } = route.params || {};
 
@@ -29,7 +22,6 @@ export default function OrderTestsScreen({ route, navigation }) {
   const [customTest, setCustomTest] = useState('');
   const [customPrice, setCustomPrice] = useState('');
 
-  // Danh sách xét nghiệm phổ biến + giá (cập nhật chính xác theo phòng khám)
   const commonTests = [
     { name: 'Công thức máu', price: 120000 },
     { name: 'Đường huyết', price: 50000 },

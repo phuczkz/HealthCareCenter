@@ -1,6 +1,3 @@
-// screens/doctor/DoctorHomeScreen.js → ĐÃ SỬA THEO Ý MÀY 100%
-// → Khung nhỏ lại + KHÔNG ĐÈ LÊN HEADER NỮA
-
 import React, { useEffect, useState, useRef } from "react";
 import {
   View,

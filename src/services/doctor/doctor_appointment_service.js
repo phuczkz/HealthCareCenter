@@ -2,135 +2,87 @@ import { supabase } from '../../api/supabase';
 
 export const DoctorAppointmentService = {
   async getDoctorId() {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) {
-        throw new Error('Không thể lấy thông tin người dùng. Vui lòng kiểm tra đăng nhập.');
-      }
-      const userId = user.id;
-
-      const { data: doctor, error: doctorError } = await supabase
-        .from('doctors')
-        .select('id')
-        .eq('id', userId)
-        .single();
-
-      if (doctorError || !doctor) {
-        throw new Error('Không tìm thấy thông tin bác sĩ. Vui lòng kiểm tra tài khoản.');
-      }
-
-      console.log('Fetched doctor ID:', doctor.id);
-      return doctor.id;
-    } catch (err) {
-      console.error('Error fetching doctor ID:', err);
-      throw err;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Chưa đăng nhập');
+    console.log('DOCTOR ID:', user.id);
+    return user.id;
   },
 
   async getAppointmentsByDoctor(doctorId) {
     try {
-      if (!doctorId || typeof doctorId !== 'string') {
-        throw new Error('ID bác sĩ không hợp lệ.');
-      }
-      console.log('Fetching appointments for doctorId:', doctorId);
-
-      const { data, error } = await supabase
+      const { data: appointments = [] } = await supabase
         .from('appointments')
         .select(`
           id,
+          user_id,
+          patient_name,
+          patient_phone,
           appointment_date,
           symptoms,
           status,
-          qr_code,
           created_at,
-          updated_at,
-          patient_name,
-          patient_phone,
-          date,
-          cancelled_by,
-          doctor:user_profiles!appointments_doctor_id_fkey(full_name, phone),
-          patient:user_profiles!appointments_user_id_fkey(full_name, phone),
-          department:departments!fk_appointments_department(name, description),
-          slot:doctor_schedule_template!fk_slot_id(start_time, end_time)
+          doctor_schedule_template!inner(start_time, end_time)
         `)
         .eq('doctor_id', doctorId)
-        .order('created_at', { ascending: false });
+        .order('appointment_date', { ascending: true });
 
-      if (error) {
-        console.error('Supabase error fetching appointments:', error.message);
-        throw new Error(`Không thể tải lịch hẹn: ${error.message}`);
+      const patientIds = [...new Set(appointments.map(a => a.user_id).filter(Boolean))];
+      let patients = [];
+      if (patientIds.length > 0) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone, avatar_url')
+          .in('id', patientIds);
+        patients = data || [];
       }
 
-      return data?.map(appointment => ({
-        ...appointment,
-        patient: appointment.patient || { full_name: 'Bệnh nhân không xác định', phone: '' },
-        doctor: appointment.doctor || { full_name: 'Bác sĩ không xác định', phone: '' },
-        department: appointment.department || { name: 'Khoa không xác định', description: '' },
-        slot: appointment.slot || { start_time: null, end_time: null },
-      })) || [];
+      let roomNumber = 'Chưa có phòng';
+      try {
+        const { data: doc } = await supabase
+          .from('doctors')
+          .select('room_number')
+          .eq('id', doctorId)
+          .maybeSingle();
+        if (doc?.room_number) roomNumber = doc.room_number.trim();
+      } catch (e) {}
+
+      let specializationText = 'Chưa xác định chuyên khoa';
+      try {
+        const { data: specs = [] } = await supabase
+          .from('doctor_specializations')
+          .select('specialization')
+          .eq('doctor_id', doctorId);
+        if (specs.length > 0) {
+          specializationText = specs.map(s => s.specialization.trim()).join(' • ');
+        }
+      } catch (e) {}
+
+      // 5. GỘP DỮ LIỆU
+      const result = appointments.map(appt => {
+        const slot = appt.doctor_schedule_template || {};
+        const patientProfile = patients.find(p => p.id === appt.user_id);
+
+        return {
+          ...appt,
+          timeDisplay: slot.start_time && slot.end_time
+            ? `${slot.start_time.slice(0,5)} - ${slot.end_time.slice(0,5)}`
+            : 'Chưa xác định',
+          patient: {
+            full_name: patientProfile?.full_name || appt.patient_name || 'Bệnh nhân',
+            phone: patientProfile?.phone || appt.patient_phone || '',
+            avatar_url: patientProfile?.avatar_url || null,
+          },
+          doctor_room_number: roomNumber,
+          doctor_specialization_text: specializationText,
+        };
+      });
+
+      console.log(`HOÀN TẤT → ${result.length} lịch | Phòng: ${roomNumber} | Chuyên khoa: ${specializationText}`);
+      return result;
+
     } catch (err) {
-      console.error('Error in getAppointmentsByDoctor:', err);
-      throw err;
-    }
-  },
-
-  async confirmAppointment(appointmentId) {
-    try {
-      if (!appointmentId || typeof appointmentId !== 'string') {
-        throw new Error('ID cuộc hẹn không hợp lệ.');
-      }
-      const { data, error } = await supabase
-        .from('appointments')
-        .update({
-          status: 'confirmed',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', appointmentId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error confirming appointment:', error);
-        throw new Error(`Không thể xác nhận cuộc hẹn: ${error.message}`);
-      }
-      if (!data) {
-        throw new Error('Cuộc hẹn không tồn tại.');
-      }
-      return data;
-    } catch (err) {
-      console.error('Error in confirmAppointment:', err);
-      throw err;
-    }
-  },
-
-  async cancelAppointment(appointmentId, cancelledBy = 'doctor', reason = null) {
-    try {
-      if (!appointmentId || typeof appointmentId !== 'string') {
-        throw new Error('ID cuộc hẹn không hợp lệ.');
-      }
-      const status = cancelledBy === 'doctor' ? 'doctor_cancelled' : 'patient_cancelled';
-      const { data, error } = await supabase
-        .from('appointments')
-        .update({
-          status,
-          updated_at: new Date().toISOString(),
-          cancelled_by: reason ? { cancelled_by: cancelledBy, reason } : { cancelled_by: cancelledBy },
-        })
-        .eq('id', appointmentId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error cancelling appointment:', error);
-        throw new Error(`Không thể hủy cuộc hẹn: ${error.message}`);
-      }
-      if (!data) {
-        throw new Error('Cuộc hẹn không tồn tại.');
-      }
-      return data;
-    } catch (err) {
-      console.error('Error in cancelAppointment:', err);
-      throw err;
+      console.error('Lỗi service:', err);
+      return [];
     }
   },
 };

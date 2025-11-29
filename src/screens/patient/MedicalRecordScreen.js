@@ -1,215 +1,526 @@
-// src/screens/patient/MedicalRecordScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
+  RefreshControl,
   Platform,
   Linking,
-  RefreshControl,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { supabase } from '../../api/supabase';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+  Alert,
+  StatusBar,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { supabase } from "../../api/supabase";
+import { useNavigation } from "@react-navigation/native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import theme from "../../theme/theme";
 
-const Colors = {
-  primary: '#1D4ED8',
-  success: '#10B981',
-  danger: '#EF4444',
-  warning: '#F59E0B',
-  bg: '#F8FAFC',
-  card: '#FFFFFF',
-  text: '#1E293B',
-  muted: '#64748B',
-};
+const { COLORS, GRADIENTS, SPACING, BORDER_RADIUS, SHADOWS } = theme;
 
 export default function MedicalRecordScreen() {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState('records'); // 'records' | 'tests'
+  const [activeTab, setActiveTab] = useState("records");
   const [records, setRecords] = useState([]);
-  const [tests, setTests] = useState([]);
+  const [testGroups, setTestGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasUnpaidInvoice, setHasUnpaidInvoice] = useState(false);
 
-  const fetchData = async (isRefresh = false) => {
-    if (!isRefresh) setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
+  // ĐÃ FIX 100% LỖI UUID "null"
+  const checkUnpaidInvoice = async (patientId) => {
+    try {
+      const { data: pendingInvoices, error } = await supabase
+        .from("invoices")
+        .select("appointment_id")
+        .eq("status", "pending")
+        .not("appointment_id", "is", null); // Loại bỏ null ngay từ đầu
+
+      if (error) {
+        console.error("Lỗi query invoices:", error);
+        return false;
+      }
+      if (!pendingInvoices || pendingInvoices.length === 0) return false;
+
+      // Lọc chỉ lấy UUID hợp lệ (chuỗi 36 ký tự)
+      const validIds = pendingInvoices
+        .map((inv) => inv.appointment_id)
+        .filter((id) => typeof id === "string" && id.length === 36);
+
+      if (validIds.length === 0) return false;
+
+      const { data: appointments } = await supabase
+        .from("appointments")
+        .select("id")
+        .in("id", validIds)
+        .eq("patient_id", patientId);
+
+      return appointments && appointments.length > 0;
+    } catch (err) {
+      console.error("Lỗi kiểm tra hóa đơn:", err);
+      return false;
     }
+  };
+
+  const fetchPatientData = async (isRefresh = false) => {
+    if (!isRefresh) setLoading(true);
 
     try {
-      if (activeTab === 'records') {
-        const { data } = await supabase
-          .from('medical_records')
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert("Lỗi", "Vui lòng đăng nhập lại");
+        navigation.replace("Login");
+        return;
+      }
+
+      const patientId = user.id;
+
+      // KIỂM TRA HÓA ĐƠN CHƯA THANH TOÁN
+      const unpaid = await checkUnpaidInvoice(patientId);
+      setHasUnpaidInvoice(unpaid);
+
+      if (unpaid) {
+        setRecords([]);
+        setTestGroups([]);
+        setLoading(false);
+        if (isRefresh) setRefreshing(false);
+        return;
+      }
+
+      // CHO PHÉP XEM NẾU ĐÃ THANH TOÁN
+      if (activeTab === "records") {
+        const { data, error } = await supabase
+          .from("medical_records")
           .select(`
-            *,
-            doctor:user_profiles(full_name),
-            appointments!appointment_id(date)
+            id,
+            created_at,
+            diagnosis,
+            treatment,
+            notes,
+            doctor:doctors!doctor_id (
+              name,
+              user_profiles!id (full_name)
+            ),
+            prescriptions (*),
+            appointments!appointment_id (
+              date,
+              invoices!appointment_id (status)
+            )
           `)
-          .eq('patient_id', user.id)
-          .order('created_at', { ascending: false });
-        setRecords(data || []);
+          .eq("patient_id", patientId)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        const allowed = (data || []).filter((r) => {
+          const status = r.appointments?.invoices?.[0]?.status;
+          return status === "paid" || status === "refunded";
+        });
+
+        const formatted = allowed.map((r) => ({
+          ...r,
+          doctor_name: r.doctor?.user_profiles?.full_name || r.doctor?.name || "Bác sĩ",
+          prescriptions: r.prescriptions || [],
+        }));
+
+        setRecords(formatted);
       } else {
-        const { data } = await supabase
-          .from('test_results')
-          .select('*')
-          .eq('patient_id', user.id)
-          .order('performed_at', { ascending: false, nullsLast: true });
-        setTests(data || []);
+        // TAB XÉT NGHIỆM
+        const { data, error } = await supabase
+          .from("test_results")
+          .select(`
+            id,
+            test_name,
+            result_value,
+            unit,
+            reference_range,
+            note,
+            status,
+            performed_at,
+            file_url,
+            appointment_id,
+            appointments!appointment_id (
+              invoices!appointment_id (status)
+            )
+          `)
+          .eq("patient_id", patientId)
+          .not("performed_at", "is", null)
+          .order("performed_at", { ascending: false });
+
+        if (error) throw error;
+
+        const filtered = data.filter((t) => {
+          const status = t.appointments?.invoices?.[0]?.status;
+          return status === "paid" || status === "refunded";
+        });
+
+        const grouped = filtered.reduce((acc, item) => {
+          const key = item.performed_at
+            ? new Date(item.performed_at).toLocaleDateString("vi-VN")
+            : item.id;
+
+          if (!acc[key]) {
+            acc[key] = {
+              date: item.performed_at
+                ? new Date(item.performed_at).toLocaleDateString("vi-VN", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })
+                : "Chưa xác định",
+              rawDate: item.performed_at || new Date(),
+              tests: [],
+              hasFile: !!item.file_url,
+              fileUrl: item.file_url,
+            };
+          }
+
+          acc[key].tests.push({
+            name: item.test_name,
+            result: item.result_value,
+            unit: item.unit,
+            range: item.reference_range,
+            note: item.note,
+            status: item.status,
+          });
+
+          if (item.file_url) {
+            acc[key].hasFile = true;
+            acc[key].fileUrl = item.file_url;
+          }
+
+          return acc;
+        }, {});
+
+        const sortedGroups = Object.values(grouped).sort(
+          (a, b) => new Date(b.rawDate) - new Date(a.rawDate)
+        );
+        setTestGroups(sortedGroups);
       }
     } catch (err) {
-      console.error('Lỗi tải bệnh án:', err);
+console.error("Lỗi tải dữ liệu:", err);
+      Alert.alert("Lỗi", "Không thể tải dữ liệu. Vui lòng thử lại.");
     } finally {
       setLoading(false);
       if (isRefresh) setRefreshing(false);
     }
   };
-
   useEffect(() => {
-    fetchData();
+    fetchPatientData();
   }, [activeTab]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchData(true);
+    fetchPatientData(true);
   };
 
-  const openFile = async (url, filename = 'ket_qua.pdf') => {
-    if (!url) return;
+  const openFile = async (url) => {
+    if (!url) {
+      Alert.alert("Thông báo", "Chưa có file kết quả");
+      return;
+    }
+
     try {
-      if (url.toLowerCase().includes('.pdf')) {
-        Linking.openURL(url);
-      } else {
-        const result = await FileSystem.downloadAsync(url, FileSystem.documentDirectory + filename);
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(result.uri);
-        }
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+        return;
       }
-    } catch (e) {
-      console.log('Lỗi mở file:', e);
+
+      const filename = url.split("/").pop() || `ketqua_${Date.now()}.pdf`;
+      const localUri = `${FileSystem.documentDirectory}${filename}`;
+      const { uri } = await FileSystem.downloadAsync(url, localUri);
+
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("Lỗi", "Thiết bị không hỗ trợ chia sẻ");
+        return;
+      }
+
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: "Kết quả xét nghiệm",
+        UTI: "com.adobe.pdf",
+      });
+    } catch (error) {
+      console.error("Lỗi mở file:", error);
+      Alert.alert("Lỗi", "Không thể mở file");
     }
   };
 
+  // MÀN HÌNH KHÓA KHI CHƯA THANH TOÁN
+  if (hasUnpaidInvoice) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#F8FAFC", justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}>
+        <StatusBar barStyle="dark-content" />
+        <Ionicons name="lock-closed" size={90} color="#DC2626" />
+        <Text style={{ fontSize: 26, fontWeight: "bold", color: "#1E293B", textAlign: "center", marginTop: 24 }}>
+          Chưa thanh toán hóa đơn
+        </Text>
+        <Text style={{ fontSize: 17, color: "#64748B", textAlign: "center", marginTop: 16, lineHeight: 28 }}>
+          Bạn cần hoàn tất thanh toán để xem bệnh án và kết quả xét nghiệm.
+        </Text>
+        <TouchableOpacity
+          style={{
+            marginTop: 36,
+            backgroundColor: "#0066FF",
+            paddingHorizontal: 36,
+            paddingVertical: 18,
+            borderRadius: 18,
+            elevation: 8,
+          }}
+          onPress={() => navigation.navigate("PaymentHistory")}
+        >
+          <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "bold" }}>
+            Xem hóa đơn cần thanh toán
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // LOADING
   if (loading && !refreshing) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Đang tải bệnh án...</Text>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
+        <ActivityIndicator size="large" color={COLORS.primary || "#0066FF"} />
+        <Text style={{ marginTop: 16, fontSize: 16, color: "#64748B" }}>Đang tải dữ liệu...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary || "#0066FF"} />
+
       {/* HEADER */}
-      <LinearGradient colors={[Colors.primary, '#2563EB']} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+      <LinearGradient
+        colors={GRADIENTS?.header || ["#0066FF", "#0044CC"]}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingTop: Platform.OS === "ios" ? 60 : 40,
+          paddingHorizontal: SPACING?.xl || 20,
+          paddingBottom: SPACING?.lg || 20,
+          borderBottomLeftRadius: BORDER_RADIUS?.xxxl || 32,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: "rgba(255,255,255,0.25)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
           <Ionicons name="arrow-back" size={26} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.title}>Bệnh án điện tử</Text>
-        <View style={{ width: 44 }} />
+        <Text style={{ fontSize: 22, fontWeight: "bold", color: "#FFF" }}>Bệnh án điện tử</Text>
+        <View style={{ width: 50 }} />
       </LinearGradient>
 
       {/* TABS */}
-      <View style={styles.tabBar}>
+      <View
+        style={{
+          flexDirection: "row",
+          margin: SPACING?.xl || 20,
+          marginBottom: SPACING?.md || 12,
+          backgroundColor: "#FFF",
+          borderRadius: BORDER_RADIUS?.xl || 20,
+          overflow: "hidden",
+          ...SHADOWS?.card,
+        }}
+      >
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'records' && styles.tabActive]}
-          onPress={() => setActiveTab('records')}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 16,
+            gap: 8,
+            backgroundColor: activeTab === "records" ? (COLORS.primary || "#0066FF") : "transparent",
+          }}
+          onPress={() => setActiveTab("records")}
         >
-          <Ionicons name="document-text" size={20} color={activeTab === 'records' ? '#FFF' : Colors.muted} />
-          <Text style={[styles.tabText, activeTab === 'records' && styles.tabTextActive]}>
+          <Ionicons name="document-text" size={22} color={activeTab === "records" ? "#FFF" : "#64748B"} />
+          <Text style={{ fontSize: 15, fontWeight: "600", color: activeTab === "records" ? "#FFF" : "#64748B" }}>
             Bệnh án ({records.length})
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'tests' && styles.tabActive]}
-          onPress={() => setActiveTab('tests')}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 16,
+            gap: 8,
+            backgroundColor: activeTab === "tests" ? (COLORS.primary || "#0066FF") : "transparent",
+          }}
+          onPress={() => setActiveTab("tests")}
         >
-          <Ionicons name="flask" size={20} color={activeTab === 'tests' ? '#FFF' : Colors.muted} />
-          <Text style={[styles.tabText, activeTab === 'tests' && styles.tabTextActive]}>
-            Cận lâm sàng ({tests.length})
+          <Ionicons name="flask" size={22} color={activeTab === "tests" ? "#FFF" : "#64748B"} />
+          <Text style={{ fontSize: 15, fontWeight: "600", color: activeTab === "tests" ? "#FFF" : "#64748B" }}>
+            Xét nghiệm ({testGroups.length})
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* CONTENT */}
-      {activeTab === 'records' ? (
+      {/* NỘI DUNG CHÍNH */}
+      {activeTab === "records" ? (
         <FlatList
           data={records}
-          keyExtractor={item => item.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
-          ListEmptyComponent={<Text style={styles.empty}>Chưa có bệnh án nào</Text>}
-          renderItem={({ item }) => (
-            <Animated.View entering={FadeInDown.duration(400)}>
-              <View style={styles.recordCard}>
-                <View style={styles.recordHeader}>
-                  <Text style={styles.recordDate}>
-                    {new Date(item.created_at).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          keyExtractor={(item) => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={{ padding: SPACING?.xl || 20, paddingTop: 0 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", marginTop: 120 }}>
+              <Ionicons name="documents-outline" size={80} color="#CBD5E1" />
+              <Text style={{ fontSize: 19, fontWeight: "bold", color: "#1E293B", marginTop: 20 }}>Chưa có bệnh án</Text>
+              <Text style={{ fontSize: 16, color: "#64748B", marginTop: 10, textAlign: "center" }}>
+                Bác sĩ sẽ cập nhật sau mỗi lần khám
+              </Text>
+            </View>
+          }
+          renderItem={({ item, index }) => (
+            <Animated.View entering={FadeInDown.delay(index * 100).duration(500)}>
+              <View
+                style={{
+                  backgroundColor: "#FFF",
+                  borderRadius: BORDER_RADIUS?.xl || 20,
+                  padding: SPACING?.xl || 20,
+                  marginBottom: SPACING?.lg || 16,
+                  ...SHADOWS?.card,
+                }}
+              >
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: COLORS.primary || "#0066FF" }}>
+                    {new Date(item.created_at).toLocaleDateString("vi-VN", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
                   </Text>
-                  <Ionicons name="person-circle" size={28} color={Colors.primary} />
+                  <Ionicons name="person-circle" size={40} color={COLORS.primary || "#0066FF"} />
                 </View>
-                <Text style={styles.doctorName}>BS. {item.doctor?.full_name || 'Không xác định'}</Text>
+
+                <Text style={{ fontSize: 18, fontWeight: "bold", color: "#1E293B", marginVertical: 6 }}>
+                  BS. {item.doctor_name}
+                </Text>
+
                 {item.diagnosis && (
-                  <>
-                    <Text style={styles.label}>Chẩn đoán</Text>
-                    <Text style={styles.value}>{item.diagnosis}</Text>
-                  </>
+                  <View style={{ marginTop: 14 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: COLORS.primary || "#0066FF" }}>Chẩn đoán</Text>
+                    <Text style={{ fontSize: 16, color: "#1E293B", marginTop: 8, lineHeight: 24 }}>{item.diagnosis}</Text>
+                  </View>
                 )}
-                {item.prescription && (
-                  <>
-                    <Text style={styles.label}>Đơn thuốc</Text>
-                    <Text style={styles.value}>{item.prescription}</Text>
-                  </>
+
+                {item.prescriptions?.length > 0 && (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: COLORS.primary || "#0066FF" }}>
+                      Đơn thuốc ({item.prescriptions.length})
+                    </Text>
+                    {item.prescriptions.map((med, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          marginTop: 10,
+                          padding: 14,
+                          backgroundColor: "#F0FDF4",
+                          borderRadius: 14,
+                          borderLeftWidth: 4,
+                          borderLeftColor: "#22C55E",
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, fontWeight: "bold", color: "#1E293B" }}>• {med.medicine_name}</Text>
+                        <Text style={{ fontSize: 15, color: "#16A34A", marginTop: 4 }}>
+                          {med.dosage} • {med.duration}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 )}
+
                 {item.notes && (
-                  <>
-                    <Text style={styles.label}>Ghi chú</Text>
-                    <Text style={styles.value}>{item.notes}</Text>
-                  </>
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: COLORS.primary || "#0066FF" }}>Ghi chú</Text>
+                    <Text style={{ fontSize: 16, color: "#1E293B", marginTop: 8, lineHeight: 24 }}>{item.notes}</Text>
+                  </View>
                 )}
               </View>
             </Animated.View>
           )}
         />
       ) : (
+        // TAB XÉT NGHIỆM
         <FlatList
-          data={tests}
-          keyExtractor={item => item.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
-          ListEmptyComponent={<Text style={styles.empty}>Chưa có kết quả cận lâm sàng</Text>}
-          renderItem={({ item }) => (
-            <Animated.View entering={FadeInDown.duration(400)}>
+          data={testGroups}
+          keyExtractor={(_, i) => i.toString()}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={{ padding: SPACING?.xl || 20, paddingTop: 0 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", marginTop: 120 }}>
+              <Ionicons name="flask-outline" size={80} color="#CBD5E1" />
+              <Text style={{ fontSize: 19, fontWeight: "bold", color: "#1E293B", marginTop: 20 }}>Chưa có kết quả xét nghiệm</Text>
+            </View>
+          }
+          renderItem={({ item, index }) => (
+            <Animated.View entering={FadeInDown.delay(index * 100).duration(500)}>
               <TouchableOpacity
-                style={[styles.testCard, item.status === 'abnormal' && styles.testCardAbnormal]}
-                onPress={() => item.file_url && openFile(item.file_url, `${item.test_name}.pdf`)}
+                style={{
+                  backgroundColor: "#FFF",
+                  borderRadius: BORDER_RADIUS?.xl || 20,
+                  padding: SPACING?.xl || 20,
+                  marginBottom: SPACING?.lg || 16,
+                  ...SHADOWS?.card,
+                  borderLeftWidth: 5,
+                  borderLeftColor: (COLORS.primary || "#0066FF") + "40",
+                }}
+                onPress={() => item.hasFile && openFile(item.fileUrl)}
+                activeOpacity={item.hasFile ? 0.8 : 1}
               >
-                <View style={styles.testHeader}>
-                  <Text style={styles.testName}>{item.test_name}</Text>
-                  <Ionicons
-                    name={item.status === 'abnormal' ? 'warning' : item.status === 'critical' ? 'alert-circle' : 'checkmark-circle'}
-                    size={28}
-                    color={item.status === 'abnormal' ? Colors.warning : item.status === 'critical' ? Colors.danger : Colors.success}
-                  />
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text style={{ fontSize: 17, fontWeight: "bold", color: "#1E293B" }}>{item.date}</Text>
+                  {item.hasFile ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: (COLORS.primary || "#0066FF") + "15", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}>
+                      <Ionicons name="document-attach" size={20} color={COLORS.primary || "#0066FF"} />
+                      <Text style={{ marginLeft: 6, color: COLORS.primary || "#0066FF", fontWeight: "600" }}>Có file PDF</Text>
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: 15, color: "#64748B", fontWeight: "600" }}>{item.tests.length} kết quả</Text>
+                  )}
                 </View>
-                <Text style={styles.testValue}>
-                  {item.result_value} {item.unit}
-                  {item.reference_range && <Text style={styles.ref}> (Bình thường: {item.reference_range})</Text>}
-                </Text>
-                {item.file_url && (
-                  <View style={styles.fileBadge}>
-                    <Ionicons name="document-attach" size={18} color={Colors.primary} />
-                    <Text style={styles.fileText}>Xem file kết quả</Text>
-                  </View>
+
+                {item.tests.slice(0, 3).map((t, i) => (
+                  <Text key={i} style={{ fontSize: 15, color: "#64748B", marginVertical: 5 }}>
+                    • {t.name}:{" "}
+                    <Text style={{ fontWeight: "600", color: t.status === "abnormal" ? "#DC2626" : "#1E293B" }}>
+                      {t.result} {t.unit}
+                    </Text>
+                  </Text>
+                ))}
+
+                {item.tests.length > 3 && (
+                  <Text style={{ marginTop: 10, color: COLORS.primary || "#0066FF", fontWeight: "600", fontStyle: "italic" }}>
+                    + {item.tests.length - 3} kết quả khác
+                  </Text>
+                )}
+
+                {item.hasFile && (
+                  <Text style={{ marginTop: 14, color: COLORS.primary || "#0066FF", fontSize: 15, textAlign: "center", fontWeight: "700" }}>
+                    Nhấn để xem file PDF
+                  </Text>
                 )}
               </TouchableOpacity>
             </Animated.View>
@@ -219,57 +530,3 @@ export default function MedicalRecordScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
-  backBtn: { padding: 4 },
-  title: { fontSize: 24, fontWeight: '800', color: '#FFF' },
-
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFF',
-    margin: 16,
-    marginBottom: 8,
-    borderRadius: 20,
-    overflow: 'hidden',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 8 },
-  tabActive: { backgroundColor: Colors.primary },
-  tabText: { fontSize: 15, fontWeight: '700', color: Colors.muted },
-  tabTextActive: { color: '#FFF' },
-
-  recordCard: { backgroundColor: '#FFF', marginHorizontal: 16, marginBottom: 12, padding: 18, borderRadius: 20, elevation: 4 },
-  recordHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  recordDate: { fontSize: 15, fontWeight: '600', color: Colors.warning },
-  doctorName: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 12 },
-  label: { fontSize: 14, color: Colors.muted, marginTop: 12, fontWeight: '600' },
-  value: { fontSize: 16, color: Colors.text, marginTop: 4, lineHeight: 22 },
-
-  testCard: { backgroundColor: '#FFF', marginHorizontal: 16, marginBottom: 12, padding: 18, borderRadius: 20, elevation: 4 },
-  testCardAbnormal: { borderLeftWidth: 5, borderLeftColor: Colors.warning },
-  testHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  testName: { fontSize: 17, fontWeight: '700', color: Colors.text },
-  testValue: { marginTop: 8, fontSize: 15, color: Colors.muted },
-  ref: { fontSize: 13, color: '#94A3B8' },
-  fileBadge: { flexDirection: 'row', alignItems: 'center', marginTop: 12, backgroundColor: '#EFF6FF', padding: 10, borderRadius: 12, alignSelf: 'flex-start' },
-  fileText: { marginLeft: 8, color: Colors.primary, fontWeight: '600' },
-
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.bg },
-  loadingText: { marginTop: 16, fontSize: 16, color: Colors.text },
-  empty: { textAlign: 'center', marginTop: 60, fontSize: 17, color: Colors.muted, fontWeight: '500' },
-});

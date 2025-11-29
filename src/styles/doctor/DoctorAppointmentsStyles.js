@@ -1,177 +1,212 @@
-// styles/doctor/DoctorAppointmentsStyles.js
+// src/styles/doctor/DoctorAppointmentsStyles.js
+// ĐÃ HOÀN CHỈNH – ĐẸP NHƯ APP PHƯỚC EM THẬT 100%, DÙNG ĐÚNG THEME CHÍNH
 
-import { StyleSheet, Platform, StatusBar } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
+import {
+  COLORS,
+  GRADIENTS,
+  SPACING,
+  BORDER_RADIUS,
+  FONT_SIZE,
+  FONT_WEIGHT,
+  SHADOWS,
+} from '../../theme/theme';
 
-export const styles = StyleSheet.create({
+export const DoctorAppointmentsStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: COLORS.background,
   },
 
   // ==================== HEADER ====================
-  header: {
-    height: Platform.OS === 'android' ? 90 : 110,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 50,
-    backgroundColor: '#2c8e7c',
+  headerGradient: {
+    paddingTop: Platform.OS === 'ios' ? 70 : 50,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xl,
+    borderBottomLeftRadius: BORDER_RADIUS.xxl,
+    borderBottomRightRadius: BORDER_RADIUS.xxl,
+    overflow: 'hidden',
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  backButton: {
-    padding: 4,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-
-  // ==================== TABS ====================
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  tab: {
     flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    marginHorizontal: 4,
-  },
-  activeTab: {
-    backgroundColor: '#e8f4f2',
-  },
-  tabText: {
-    fontSize: 12,
-    color: '#7f8c8d',
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  activeTabText: {
-    color: '#2c8e7c',
-    fontWeight: '700',
-  },
-  activeTabIndicator: {
-    marginTop: 6,
-    height: 3,
-    width: '60%',
-    backgroundColor: '#2c8e7c',
-    borderRadius: 2,
+    marginLeft: SPACING.lg,
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.textOnPrimary,
   },
 
-  // ==================== CARD ====================
-  card: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+  // ==================== TAB BAR ====================
+  tabBarContainer: {
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.md,
+    padding: 6,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    ...SHADOWS.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb15',
   },
-  cardHeader: {
+  tabButton: isActive => ({
+    flex: 1,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: isActive ? COLORS.primary : 'transparent',
+  }),
+  tabText: isActive => ({
+    fontSize: FONT_SIZE.md,
+    fontWeight: '700',
+    color: isActive ? COLORS.textOnPrimary : COLORS.textSecondary,
+  }),
+
+  // ==================== CARD LỊCH KHÁM ====================
+  itemWrapper: {
+    marginHorizontal: SPACING.xl,
+    marginBottom: SPACING.lg,
+  },
+  itemCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    overflow: 'hidden',
+    ...SHADOWS.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb15',
+  },
+  cardContent: {
+    padding: SPACING.lg,
+  },
+
+  // Header tên + trạng thái
+  itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.md,
   },
   patientName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2c3e50',
-    flex: 1,
+    color: COLORS.textPrimary,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
     borderRadius: 20,
-    minWidth: 90,
-    alignItems: 'center',
   },
-  statusBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+  statusText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.textOnPrimary,
   },
 
-  department: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    marginBottom: 4,
-  },
-  time: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#2c8e7c',
-    marginBottom: 8,
-  },
-  symptoms: {
-    fontSize: 14,
-    color: '#34495e',
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  cancelInfo: {
-    fontSize: 13,
-    color: '#e74c3c',
-    fontStyle: 'italic',
-    marginTop: 8,
-  },
-
-  // ==================== ACTION BUTTONS ====================
-  actionButtons: {
+  // Dòng thông tin (giờ, phòng, chuyên khoa)
+  infoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  confirmBtn: {
-    flex: 1,
-    backgroundColor: '#27ae60',
-    paddingVertical: 12,
-    borderRadius: 8,
     alignItems: 'center',
-    marginRight: 8,
+    marginBottom: SPACING.sm,
   },
-  confirmBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: '#e74c3c',
-    paddingVertical: 12,
-    borderRadius: 8,
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary + '15',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    marginRight: SPACING.md,
   },
-  cancelBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
+  infoText: {
+    flex: 1,
+    fontSize: FONT_SIZE.base,
+    color: COLORS.textSecondary,
+  },
+  timeText: {
+    fontWeight: '600',
+    color: COLORS.primary,
   },
 
-  // ==================== EMPTY & LOADING ====================
-  emptyText: {
-    fontSize: 16,
-    color: '#95a5a6',
+  // Triệu chứng
+  symptomsBox: {
+    marginVertical: SPACING.md,
+    padding: SPACING.lg,
+    backgroundColor: COLORS.accentTeal + '10',
+    borderRadius: BORDER_RADIUS.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.accentTeal,
+  },
+  symptomsText: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.textPrimary,
+    lineHeight: 20,
+  },
+
+  // ==================== NÚT HÀNH ĐỘNG ====================
+  actionContainer: {
+    marginTop: SPACING.lg,
+    gap: SPACING.md,
+  },
+
+  mainActionButton: {
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
+    ...SHADOWS.small,
+  },
+  mainActionGradient: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  mainActionText: {
+    marginLeft: SPACING.sm,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: '600',
+    color: COLORS.textOnPrimary,
+  },
+
+  secondaryButton: {
+    alignSelf: 'center',
+    paddingHorizontal: SPACING.xxl,
+    paddingVertical: 14,
+    borderRadius: 30,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: COLORS.danger + '40',
+  },
+  secondaryText: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+    color: COLORS.danger,
+  },
+
+  // ==================== TRẠNG THÁI TRỐNG / LOADING ====================
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xxl,
+  },
+  loadingText: {
+    marginTop: SPACING.lg,
+    fontSize: FONT_SIZE.md,
+    color: COLORS.textSecondary,
+  },
+  errorText: {
+    marginTop: SPACING.lg,
+    fontSize: FONT_SIZE.lg,
+    color: COLORS.danger,
     textAlign: 'center',
-    lineHeight: 24,
+  },
+  emptyText: {
+    marginTop: SPACING.xl,
+    fontSize: FONT_SIZE.xl,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 28,
   },
 });

@@ -1,17 +1,26 @@
-// src/screens/patient/Book_appointment/BookByDate/BookByDate.js
 import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar } from 'react-native-calendars';
 import { supabase } from '../../../../api/supabase';
+
+import {
+  COLORS,
+  GRADIENTS,
+  SPACING,
+  BORDER_RADIUS,
+  FONT_SIZE,
+  FONT_WEIGHT,
+  SHADOWS,
+} from '../../../../theme/theme';
 
 export default function BookByDate() {
   const navigation = useNavigation();
@@ -23,29 +32,32 @@ export default function BookByDate() {
     setLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
+
       const { data, error } = await supabase
-        .rpc('get_available_dates', { 
-          from_date: today, 
-          days_ahead: 90 
-        });
+        .rpc('get_available_dates', { from_date: today, days_ahead: 90 });
 
       if (error) throw error;
 
       const marked = {};
-      if (data && data.length > 0) {
-        data.forEach(item => {
-          marked[item.work_date] = {
-            marked: true,
-            dotColor: '#10B981',
-            selectedColor: '#059669',
-          };
-        });
+      data?.forEach(item => {
+        marked[item.work_date] = {
+          marked: true,
+          dotColor: COLORS.primary,
+        };
+      });
+
+      if (selectedDate && marked[selectedDate]) {
+        marked[selectedDate] = {
+          ...marked[selectedDate],
+          selected: true,
+          selectedColor: COLORS.primary,
+          selectedTextColor: COLORS.textOnPrimary,
+        };
       }
 
       setMarkedDates(marked);
     } catch (err) {
-      console.error('Lỗi tải lịch:', err);
-      Alert.alert('Lỗi', 'Không thể tải lịch. Vui lòng thử lại.');
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -58,131 +70,134 @@ export default function BookByDate() {
   );
 
   const handleDayPress = (day) => {
-    if (!markedDates[day.dateString]?.marked) {
-      Alert.alert('Không thể đặt', 'Ngày này không có khung giờ khám.');
-      return;
-    }
-    setSelectedDate(day.dateString);
-    navigation.navigate('SelectDepartment', { date: day.dateString });
+    const dateStr = day.dateString;
+    if (!markedDates[dateStr]?.marked) return;
+
+    setSelectedDate(dateStr);
+    navigation.navigate('SelectDepartment', { date: dateStr });
   };
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   return (
     <View style={styles.container}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={26} color={COLORS.textOnPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Chọn ngày khám</Text>
-      </View>
+        <TouchableOpacity onPress={() => navigation.navigate('PatientHome')}>
+          <Ionicons name="home-outline" size={26} color={COLORS.textOnPrimary} />
+        </TouchableOpacity>
+      </LinearGradient>
 
-      {/* LOADING */}
       {loading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Đang tải lịch khám...</Text>
         </View>
       )}
 
-      {/* CALENDAR */}
-      <View style={styles.calendarContainer}>
+      <View style={styles.calendarWrapper}>
         <Calendar
+          current={todayStr}
+          minDate={todayStr}
           onDayPress={handleDayPress}
           markedDates={{
             ...markedDates,
-            [selectedDate]: {
+            [selectedDate]: selectedDate ? {
               ...(markedDates[selectedDate] || {}),
               selected: true,
-              selectedColor: '#059669',
-            },
+              selectedColor: COLORS.primary,
+              selectedTextColor: COLORS.textOnPrimary,
+            } : undefined,
           }}
-          minDate={new Date().toISOString().split('T')[0]}
           theme={{
-            backgroundColor: '#ffffff',
-            calendarBackground: '#ffffff',
-            textSectionTitleColor: '#1F2937',
-            selectedDayBackgroundColor: '#059669',
-            selectedDayTextColor: '#ffffff',
-            todayTextColor: '#10B981',
-            todayBackgroundColor: '#ECFDF5',
-            dayTextColor: '#1F2937',
-            textDisabledColor: '#D1D5DB',
-            dotColor: '#10B981',
-            selectedDotColor: '#ffffff',
-            arrowColor: '#4B5563',
-            monthTextColor: '#1F2937',
+            backgroundColor: COLORS.surface,
+            calendarBackground: COLORS.surface,
+            textSectionTitleColor: COLORS.textSecondary,
+            todayTextColor: COLORS.primary,
+            todayBackgroundColor: COLORS.primary + '15',
+            dayTextColor: COLORS.textPrimary,
+            textDisabledColor: COLORS.textLight,
+            dotColor: COLORS.primary,
+            selectedDotColor: COLORS.textOnPrimary,
+            arrowColor: COLORS.primary,
+            monthTextColor: COLORS.textPrimary,
             textDayFontWeight: '600',
             textMonthFontWeight: '800',
             textDayHeaderFontWeight: '700',
+            textDayFontSize: FONT_SIZE.base,
+            textMonthFontSize: FONT_SIZE.xl,
           }}
+          hideExtraDays
+          firstDay={1}
+          enableSwipeMonths
         />
       </View>
 
-      {/* LEGEND */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
+          <View style={[styles.dot, { backgroundColor: COLORS.primary }]} />
           <Text style={styles.legendText}>Có lịch khám</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.dot, { backgroundColor: '#E5E7EB' }]} />
-          <Text style={styles.legendText}>Không có lịch</Text>
+          <View style={[styles.dot, { backgroundColor: COLORS.textLight }]} />
+          <Text style={styles.legendText}>Ngày nghỉ</Text>
         </View>
       </View>
 
       <Text style={styles.note}>
-        Bấm vào ngày có chấm xanh để tiếp tục đặt khám.
+        Chỉ bấm vào ngày có chấm xanh để đặt lịch khám
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xl,
+    borderBottomLeftRadius: BORDER_RADIUS.xxl,
+    borderBottomRightRadius: BORDER_RADIUS.xxl,
   },
-  backButton: { padding: 4 },
-  title: { fontSize: 20, fontWeight: '700', marginLeft: 12, color: '#1F2937' },
+  title: { fontSize: 26, fontWeight: '800', color: COLORS.textOnPrimary },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(255,255,255,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 100,
   },
-  loadingText: { marginTop: 12, color: '#6B7280', fontSize: 15 },
-  calendarContainer: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 8,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
+  loadingText: { marginTop: SPACING.md, fontSize: FONT_SIZE.base, color: COLORS.textSecondary },
+  calendarWrapper: {
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.xl,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    overflow: 'hidden',
+    ...SHADOWS.card,
   },
-  legend: { marginHorizontal: 20, marginTop: 16, gap: 8 },
-  legendItem: { flexDirection: 'row', alignItems: 'center' },
-  dot: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
-  legendText: { fontSize: 13, color: '#6B7280' },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: SPACING.xl,
+    gap: 32,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  dot: { width: 12, height: 12, borderRadius: 6 },
+  legendText: { fontSize: FONT_SIZE.sm, color: COLORS.textSecondary },
   note: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 32,
-    fontSize: 14,
-    color: '#374151',
-    fontWeight: '600',
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.xxxl,
+    fontSize: FONT_SIZE.base,
+    color: COLORS.primary,
+    fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 20,
   },
 });

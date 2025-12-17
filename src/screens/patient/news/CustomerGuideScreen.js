@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Linking,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,7 +15,7 @@ import theme from "../../../theme/theme";
 
 const { SPACING } = theme;
 const { width } = Dimensions.get("window");
-const CARD_SIZE = (width - 64) / 3;
+const ITEM_WIDTH = (width - SPACING.xl * 2 - 32) / 3; // 3 cái 1 hàng, có khoảng cách
 
 const guides = [
   {
@@ -58,290 +59,318 @@ const guides = [
 export default function CustomerGuideScreen({ navigation }) {
   const [activeId, setActiveId] = useState(null);
   const scrollViewRef = useRef(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const toggleSection = (id) => {
-    const newId = activeId === id ? null : id;
-    setActiveId(newId);
-    if (newId) {
+    setActiveId(activeId === id ? null : id);
+    if (
+      activeId !== id &&
       setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y: 480, animated: true });
-      }, 200);
-    }
+        scrollViewRef.current?.scrollTo({ y: 500, animated: true });
+      }, 300)
+    );
   };
 
   const currentItem = guides.find((g) => g.id === activeId);
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#2563EB", "#3B82F6"]} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={26} color="#FFF" />
+      <LinearGradient colors={["#1D4ED8", "#3B82F6"]} style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
+          <Ionicons name="arrow-back" size={28} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hướng dẫn</Text>
-        <View style={{ width: 26 }} />
+        <Text style={styles.headerTitle}>Hướng dẫn sử dụng</Text>
+        <View style={{ width: 28 }} />
       </LinearGradient>
 
-      <ScrollView
+      <Animated.ScrollView
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 160 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
+        style={{ opacity: fadeAnim }}
       >
         <View style={styles.hero}>
-          <Ionicons name="heart" size={60} color="#3B82F6" />
-          <Text style={styles.heroTitle}>Hỗ trợ bạn{"\n"}từng bước</Text>
+          <View style={styles.heartCircle}>
+            <Ionicons name="heart" size={48} color="#3B82F6" />
+          </View>
+          <Text style={styles.heroTitle}>Hỗ trợ bạn</Text>
+          <Text style={styles.heroSubtitle}>từng bước một cách dễ dàng</Text>
         </View>
 
+        {/* 3 cái trên 1 hàng ngang */}
         <View style={styles.grid}>
           {guides.map((item) => (
             <TouchableOpacity
               key={item.id}
-              activeOpacity={0.9}
+              activeOpacity={0.85}
               style={[
-                styles.smallCard,
-                activeId === item.id && styles.activeCard,
+                styles.gridItem,
+                activeId === item.id && styles.activeGridItem,
               ]}
               onPress={() => toggleSection(item.id)}
             >
-              <LinearGradient
-                colors={[item.color + "28", "#FFFFFF"]}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View style={[styles.smallIcon, { backgroundColor: item.color }]}>
-                <Ionicons name={item.icon} size={28} color="#FFF" />
+              <View
+                style={[
+                  styles.iconCircle,
+                  { backgroundColor: item.color + "18" },
+                ]}
+              >
+                <Ionicons name={item.icon} size={32} color={item.color} />
               </View>
-              <Text style={styles.smallTitle}>{item.title}</Text>
+              <Text style={styles.gridTitle}>{item.title}</Text>
               <Ionicons
                 name={activeId === item.id ? "chevron-up" : "chevron-down"}
-                size={18}
+                size={20}
                 color="#64748B"
-                style={{ marginTop: 6 }}
+                style={{ marginTop: 8 }}
               />
             </TouchableOpacity>
           ))}
         </View>
 
+        {/* Phần chi tiết khi bấm */}
         {activeId && currentItem && (
-          <View style={styles.activeSection}>
+          <View style={styles.detailCard}>
             <LinearGradient
-              colors={[currentItem.color, currentItem.color + "E0"]}
-              style={styles.activeHeader}
+              colors={[currentItem.color, currentItem.color + "DD"]}
+              style={styles.detailHeader}
             >
-              <Ionicons name={currentItem.icon} size={28} color="#FFF" />
-              <Text style={styles.activeTitle}>{currentItem.title}</Text>
+              <Ionicons name={currentItem.icon} size={32} color="#FFF" />
+              <Text style={styles.detailTitle}>{currentItem.title}</Text>
             </LinearGradient>
 
-            <View style={styles.activeBody}>
+            <View style={styles.detailBody}>
               {activeId === "booking" && (
                 <>
-                  <Text style={styles.txt}>1. Trang chủ → Bấm "Đặt khám"</Text>
-                  <Text style={styles.txt}>
-                    2. Chọn chuyên khoa → bác sĩ → ngày giờ
-                  </Text>
-                  <Text style={styles.txt}>
-                    3. Xác nhận → nhận mã đặt lịch qua SMS
-                  </Text>
-                  <Text style={styles.highlight}>
+                  <Step text="1. Trang chủ → Bấm nút Đặt khám ngay" />
+                  <Step text="2. Chọn chuyên khoa → bác sĩ → ngày giờ phù hợp" />
+                  <Step text="3. Xác nhận → nhận mã đặt lịch qua SMS" />
+                  <Text style={styles.successText}>
                     Hoàn thành chỉ trong 30 giây!
                   </Text>
                 </>
               )}
               {activeId === "process" && (
                 <>
-                  <Text style={styles.txt}>1. Đăng ký tại quầy tiếp nhận</Text>
-                  <Text style={styles.txt}>2. Khám lâm sàng với bác sĩ</Text>
-                  <Text style={styles.txt}>
-                    3. Thực hiện xét nghiệm / chẩn đoán hình ảnh
-                  </Text>
-                  <Text style={styles.txt}>
-                    4. Nhận kết quả & tư vấn điều trị
-                  </Text>
+                  <Step text="1. Đăng ký tại quầy tiếp nhận" />
+                  <Step text="2. Khám lâm sàng với bác sĩ chuyên khoa" />
+                  <Step text="3. Thực hiện xét nghiệm / chẩn đoán hình ảnh (nếu có)" />
+                  <Step text="4. Nhận kết quả & tư vấn phác đồ điều trị" />
                 </>
               )}
               {activeId === "payment" && (
                 <>
-                  <Text style={styles.txt}>
-                    • Thanh toán: Tiền mặt, thẻ, chuyển khoản, QR
-                  </Text>
-                  <Text style={styles.txt}>
-                    • Hỗ trợ BHYT và mọi loại bảo hiểm
-                  </Text>
-                  <Text style={styles.txt}>
-                    • In hóa đơn điện tử ngay lập tức
-                  </Text>
+                  <Step text="• Thanh toán: Tiền mặt, thẻ, chuyển khoản, QR Code" />
+                  <Step text="• Hỗ trợ BHYT + mọi loại bảo hiểm tư nhân" />
+                  <Step text="• In hóa đơn điện tử ngay lập tức" />
                 </>
               )}
               {activeId === "test" && (
                 <>
-                  <Text style={styles.txt}>
-                    • Nhịn ăn 6-8h nếu xét nghiệm máu
-                  </Text>
-                  <Text style={styles.txt}>• Mang CMND/CCCD + mã đặt lịch</Text>
-                  <Text style={styles.txt}>
-                    • Lấy mẫu tại Tầng 1 – Khu xét nghiệm
-                  </Text>
+                  <Step text="• Nhịn ăn 6-8h nếu làm xét nghiệm máu" />
+                  <Step text="• Mang CMND/CCCD + mã đặt lịch" />
+                  <Step text="• Lấy mẫu tại Tầng 1 – Khu xét nghiệm" />
                 </>
               )}
               {activeId === "result" && (
                 <>
-                  <Text style={styles.txt}>• Vào app → "Bệnh án"</Text>
-                  <Text style={styles.txt}>
-                    • Xem ngay kết quả xét nghiệm, X-quang, siêu âm
-                  </Text>
-                  <Text style={styles.txt}>
-                    • Tải PDF miễn phí, chia sẻ cho bác sĩ
-                  </Text>
+                  <Step text="• Vào app → mục Bệnh án" />
+                  <Step text="• Xem ngay kết quả xét nghiệm, X-quang, siêu âm..." />
+                  <Step text="• Tải PDF miễn phí, chia sẻ dễ dàng" />
                 </>
               )}
               {activeId === "faq" && (
                 <>
-                  <Text style={styles.txt}>
-                    • Đặt lịch có mất phí không? → Hoàn toàn miễn phí
-                  </Text>
-                  <Text style={styles.txt}>
-                    • Có hủy lịch được không? → Được, trước 2 tiếng
-                  </Text>
-                  <Text style={styles.txt}>
-                    • Mang gì khi đi khám? → CMND + Mã đặt lịch
-                  </Text>
+                  <Step text="• Đặt lịch có mất phí không? → Hoàn toàn miễn phí" />
+                  <Step text="• Có hủy lịch được không? → Được, trước 2h" />
+                  <Step text="• Mang gì khi đi khám? → CMND + Mã đặt lịch" />
                 </>
               )}
             </View>
           </View>
         )}
+      </Animated.ScrollView>
 
-        <TouchableOpacity
-          style={styles.hotline}
-          onPress={() => Linking.openURL("tel:0854776885")}
+      {/* Nút hotline nổi */}
+      <TouchableOpacity
+        style={styles.fab}
+        activeOpacity={0.9}
+        onPress={() => Linking.openURL("tel:0854776885")}
+      >
+        <LinearGradient
+          colors={["#10B981", "#059669"]}
+          style={styles.fabGradient}
         >
-          <LinearGradient
-            colors={["#10B981", "#059669"]}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={styles.hotlineContent}>
-            <Ionicons name="call" size={30} color="#FFF" />
-            <View style={{ marginLeft: 16 }}>
-              <Text style={styles.hotlineLabel}>Hỗ trợ 24/7</Text>
-              <Text style={styles.hotlineNumber}>0854 776 885</Text>
-            </View>
+          <Ionicons name="call" size={28} color="#FFF" />
+          <View style={styles.supportBadge}>
+            <Text style={styles.supportText}>24/7</Text>
           </View>
-        </TouchableOpacity>
-      </ScrollView>
+        </LinearGradient>
+      </TouchableOpacity>
     </View>
   );
 }
 
+const Step = ({ text }) => (
+  <View style={styles.stepRow}>
+    <View style={styles.bullet} />
+    <Text style={styles.stepText}>{text}</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
   header: {
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 24,
     paddingHorizontal: SPACING.xl,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
-  headerTitle: { fontSize: 24, fontWeight: "800", color: "#FFF" },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 26, fontWeight: "800", color: "#FFF" },
 
   hero: {
     alignItems: "center",
-    paddingVertical: 32,
-    backgroundColor: "#F0F9FF",
     marginHorizontal: SPACING.xl,
-    marginTop: SPACING.lg,
-    borderRadius: 28,
+    marginTop: 20,
+    paddingVertical: 40,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 32,
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
   },
-  heroTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#1E293B",
-    textAlign: "center",
-    marginTop: 12,
+  heartCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#DBEAFE",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
   },
+  heroTitle: { fontSize: 30, fontWeight: "900", color: "#1E40AF" },
+  heroSubtitle: { fontSize: 17, color: "#64748B", marginTop: 6 },
 
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    marginTop: 10,
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.xl,
+    marginTop: 24,
   },
-  smallCard: {
-    width: CARD_SIZE,
-    height: CARD_SIZE + 10,
+  gridItem: {
+    width: ITEM_WIDTH,
+    alignItems: "center",
     backgroundColor: "#FFF",
+    paddingVertical: 20,
+    paddingHorizontal: 12,
     borderRadius: 24,
-    margin: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
   },
-  activeCard: {
-    elevation: 16,
-    transform: [{ scale: 1.06 }],
-    borderWidth: 2.5,
+  activeGridItem: {
     borderColor: "#3B82F6",
+    backgroundColor: "#F0F7FF",
+    borderWidth: 2.5,
+    transform: [{ scale: 1.05 }],
   },
-  smallIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  smallTitle: {
-    fontSize: 13.5,
-    fontWeight: "700",
+  gridTitle: {
+    fontSize: 14,
+    fontWeight: "600",
     color: "#1E293B",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+
+  detailCard: {
+    marginHorizontal: SPACING.xl,
+    marginTop: 32,
+    borderRadius: 32,
+    overflow: "hidden",
+    backgroundColor: "#FFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+  },
+  detailHeader: {
+    padding: 28,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  detailTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FFF",
+    marginLeft: 18,
+  },
+  detailBody: { backgroundColor: "#FFF", padding: 28 },
+  stepRow: { flexDirection: "row", marginBottom: 16, alignItems: "flex-start" },
+  bullet: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#3B82F6",
+    marginTop: 6,
+    marginRight: 14,
+  },
+  stepText: { flex: 1, fontSize: 16.5, color: "#334155", lineHeight: 26 },
+  successText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#10B981",
+    marginTop: 20,
     textAlign: "center",
   },
 
-  activeSection: {
-    marginHorizontal: SPACING.xl,
-    marginTop: 28,
-    borderRadius: 32,
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 30,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 3,
+    borderColor: "#FFF",
     overflow: "hidden",
-    elevation: 16,
   },
-  activeHeader: {
-    padding: 24,
-    flexDirection: "row",
+  fabGradient: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
   },
-  activeTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#FFF",
-    marginLeft: 16,
+  supportBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "#FF3B30",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#FFF",
   },
-  activeBody: { backgroundColor: "#FFF", padding: 26 },
-  txt: { fontSize: 16.2, color: "#334155", lineHeight: 26, marginBottom: 10 },
-  highlight: {
-    fontSize: 17,
-    color: "#10B981",
-    fontWeight: "800",
-    marginTop: 14,
-  },
-
-  hotline: {
-    marginHorizontal: SPACING.xl,
-    height: 88,
-    borderRadius: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 28,
-    marginTop: 40,
-    overflow: "hidden",
-    elevation: 20,
-  },
-  hotlineContent: { flexDirection: "row", alignItems: "center" },
-  hotlineLabel: { color: "#D1FAE5", fontSize: 14.5 },
-  hotlineNumber: {
-    color: "#FFF",
-    fontSize: 28,
-    fontWeight: "900",
-    marginTop: 4,
-  },
+  supportText: { color: "#FFF", fontSize: 10, fontWeight: "800" },
 });

@@ -60,7 +60,7 @@ export default function PatientStack() {
       <Stack.Screen name="BookSuccessDoctor" component={BookSuccessDoctor} />
 
       <Stack.Screen name="BookByDate" component={BookByDate} />
-      <Stack.Screen name="SelectDepartment" component={SelectDepartment} />
+      <Stack.Screen name="SelectSpecialization" component={SelectDepartment} />
       <Stack.Screen name="SelectTimeSlot" component={SelectTimeSlot} />
       <Stack.Screen name="ConfirmBooking" component={ConfirmBooking} />
       <Stack.Screen name="BookingSuccess" component={BookingSuccess} />

@@ -4,54 +4,143 @@ import {
   Text,
   ScrollView,
   ActivityIndicator,
-  Platform,
   TouchableOpacity,
   Dimensions,
+  Platform,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { LineChart } from "react-native-chart-kit";
 import { supabase } from "../../api/supabase";
 import { useNavigation } from "@react-navigation/native";
-import { LineChart } from "react-native-chart-kit";
 import theme from "../../theme/theme";
 
-const { COLORS, SPACING, SHADOWS, GRADIENTS } = theme;
+const { COLORS, SPACING } = theme;
 const screenWidth = Dimensions.get("window").width;
+
+/* ================= KPI ================= */
+const KPI = ({ title, value, icon, color }) => (
+  <View style={styles.kpiCard}>
+    <View style={[styles.kpiIcon, { backgroundColor: `${color}15` }]}>
+      <Ionicons name={icon} size={22} color={color} />
+    </View>
+    <Text style={styles.kpiTitle}>{title}</Text>
+    <Text style={[styles.kpiValue, { color }]}>{value.toLocaleString()}đ</Text>
+  </View>
+);
+
+/* ================= BILL ITEM ================= */
+const BillItem = ({ item }) => (
+  <View style={styles.billCard}>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.billCode}>{item.invoice_number}</Text>
+      <Text style={styles.billDate}>
+        {new Date(item.issued_at).toLocaleString("vi-VN")}
+      </Text>
+    </View>
+
+    <View style={{ alignItems: "flex-end" }}>
+      <Text style={styles.billAmount}>
+        {Number(item.total_amount).toLocaleString()}đ
+      </Text>
+      <Text
+        style={[
+          styles.billStatus,
+          {
+            color: item.status === "paid" ? COLORS.success : COLORS.warning,
+          },
+        ]}
+      >
+        {item.status === "paid" ? "Đã thu" : "Chưa thu"}
+      </Text>
+    </View>
+  </View>
+);
 
 export default function RevenueStatsScreen() {
   const navigation = useNavigation();
+
   const [loading, setLoading] = useState(true);
-  const [revenueData, setRevenueData] = useState({
+  const [filterMode, setFilterMode] = useState("day"); // day | month | year
+  const [activeTab, setActiveTab] = useState("chart"); // chart | bill
+
+  const [fromDate, setFromDate] = useState(new Date());
+  const [toDate, setToDate] = useState(new Date());
+  const [pickerType, setPickerType] = useState(null);
+
+  const [chartData, setChartData] = useState({
     labels: [],
-    totalRevenue: [],
-    paidRevenue: [],
+    total: [],
+    paid: [],
   });
 
+  const [summary, setSummary] = useState({
+    total: 0,
+    paid: 0,
+    pending: 0,
+  });
+
+  const [bills, setBills] = useState([]);
+
+  /* ================= LOAD DATA ================= */
   const loadRevenue = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("invoices")
-        .select("issued_at, total_amount, status")
-        .order("issued_at", { ascending: true });
+        .select("*")
+        .order("issued_at", { ascending: false });
 
+      if (filterMode === "day") {
+        query = query
+          .gte("issued_at", fromDate.toISOString())
+          .lte("issued_at", toDate.toISOString());
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
 
-      const grouped = data.reduce((acc, inv) => {
-        const day = new Date(inv.issued_at).toLocaleDateString();
-        if (!acc[day]) acc[day] = { total: 0, paid: 0 };
-        acc[day].total += Number(inv.total_amount);
-        if (inv.status === "paid") acc[day].paid += Number(inv.total_amount);
-        return acc;
-      }, {});
+      setBills(data || []);
+
+      let grouped = {};
+      let total = 0;
+      let paid = 0;
+      let pending = 0;
+
+      data.forEach((inv) => {
+        const date = new Date(inv.issued_at);
+        let key = "";
+
+        if (filterMode === "day") key = date.toLocaleDateString("vi-VN");
+        else if (filterMode === "month")
+          key = `${date.getMonth() + 1}/${date.getFullYear()}`;
+        else key = `${date.getFullYear()}`;
+
+        if (!grouped[key]) grouped[key] = { total: 0, paid: 0 };
+
+        grouped[key].total += Number(inv.total_amount);
+        total += Number(inv.total_amount);
+
+        if (inv.status === "paid") {
+          grouped[key].paid += Number(inv.total_amount);
+          paid += Number(inv.total_amount);
+        } else {
+          pending += Number(inv.total_amount);
+        }
+      });
 
       const labels = Object.keys(grouped);
-      const totalRevenue = labels.map((day) => grouped[day].total);
-      const paidRevenue = labels.map((day) => grouped[day].paid);
+      setChartData({
+        labels,
+        total: labels.map((k) => grouped[k].total),
+        paid: labels.map((k) => grouped[k].paid),
+      });
 
-      setRevenueData({ labels, totalRevenue, paidRevenue });
-    } catch (err) {
-      console.log("Error load revenue:", err);
+      setSummary({ total, paid, pending });
+    } catch (e) {
+      console.log("Load revenue error:", e);
     } finally {
       setLoading(false);
     }
@@ -59,167 +148,301 @@ export default function RevenueStatsScreen() {
 
   useEffect(() => {
     loadRevenue();
-  }, []);
-
-  const totalRevenueSum = revenueData.totalRevenue.reduce((a, b) => a + b, 0);
-  const paidRevenueSum = revenueData.paidRevenue.reduce((a, b) => a + b, 0);
+  }, [filterMode, fromDate, toDate]);
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.background }}>
-      <LinearGradient
-        colors={GRADIENTS.header}
-        style={{
-          height: 120,
-          paddingTop: Platform.OS === "ios" ? 65 : 45,
-          borderBottomLeftRadius: 40,
-          borderBottomRightRadius: 40,
-          justifyContent: "center",
-          position: "relative",
-        }}
-      >
+      {/* HEADER */}
+      <LinearGradient colors={["#2563EB", "#1E40AF"]} style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.navigate("AdminHome")}
-          style={{
-            position: "absolute",
-            left: SPACING.xl,
-            top: Platform.OS === "ios" ? 65 : 45,
-            width: 40,
-            height: 40,
-            borderRadius: 23,
-            backgroundColor: "rgba(255,255,255,0.28)",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 10,
-          }}
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
         >
-          <Ionicons name="chevron-back" size={26} color="#FFF" />
+          <Ionicons name="chevron-back" size={30} color="#FFF" />
         </TouchableOpacity>
-
-        <View
-          style={{
-            position: "absolute",
-            top: Platform.OS === "ios" ? 65 : 45,
-            left: 0,
-            right: 0,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 24,
-              fontWeight: "800",
-              color: "#FFF",
-              textAlign: "center",
-            }}
-          >
-            Thống kê doanh thu
-          </Text>
-        </View>
+        <Text style={styles.headerTitle}>Thống kê doanh thu</Text>
       </LinearGradient>
 
       {loading ? (
-        <ActivityIndicator
-          size="large"
-          color={COLORS.primary}
-          style={{ marginTop: 50 }}
-        />
+        <ActivityIndicator size="large" style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
-          <View style={{ flexDirection: "row", marginBottom: 20 }}>
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "#FFF",
-                borderRadius: 20,
-                padding: 20,
-                marginRight: 10,
-                ...SHADOWS.card,
-              }}
-            >
-              <Text style={{ color: "#64748B", fontSize: 14 }}>
-                Tổng doanh thu
-              </Text>
-              <Text
-                style={{
-                  fontSize: 20,
-                  fontWeight: "700",
-                  color: COLORS.primary,
-                  marginTop: 8,
-                }}
-              >
-                {totalRevenueSum.toLocaleString()}đ
-              </Text>
+        <>
+          <ScrollView
+            contentContainerStyle={{ padding: SPACING.lg, paddingBottom: 90 }}
+          >
+            {/* FILTER */}
+            <View style={styles.filterRow}>
+              {["day", "month", "year"].map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  onPress={() => setFilterMode(m)}
+                  style={[
+                    styles.filterBtn,
+                    filterMode === m && styles.filterActive,
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: filterMode === m ? "#FFF" : "#475569",
+                      fontWeight: "600",
+                    }}
+                  >
+                    {m === "day" ? "Ngày" : m === "month" ? "Tháng" : "Năm"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "#FFF",
-                borderRadius: 20,
-                padding: 20,
-                ...SHADOWS.card,
-              }}
-            >
-              <Text style={{ color: "#64748B", fontSize: 14 }}>
-                Đã thanh toán
-              </Text>
-              <Text
-                style={{
-                  fontSize: 20,
-                  fontWeight: "700",
-                  color: COLORS.success,
-                  marginTop: 8,
-                }}
-              >
-                {paidRevenueSum.toLocaleString()}đ
-              </Text>
-            </View>
-          </View>
+            {/* DATE */}
+            {filterMode === "day" && (
+              <View style={styles.dateRow}>
+                <TouchableOpacity
+                  style={styles.dateBox}
+                  onPress={() => setPickerType("from")}
+                >
+                  <Ionicons name="calendar-outline" size={18} />
+                  <Text style={styles.dateText}>
+                    Từ: {fromDate.toLocaleDateString("vi-VN")}
+                  </Text>
+                </TouchableOpacity>
 
-          {revenueData.labels.length > 0 ? (
-            <LineChart
-              data={{
-                labels: revenueData.labels,
-                datasets: [
-                  {
-                    data: revenueData.totalRevenue,
+                <TouchableOpacity
+                  style={styles.dateBox}
+                  onPress={() => setPickerType("to")}
+                >
+                  <Ionicons name="calendar-outline" size={18} />
+                  <Text style={styles.dateText}>
+                    Đến: {toDate.toLocaleDateString("vi-VN")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* KPI */}
+            <View style={styles.kpiRow}>
+              <KPI
+                title="Tổng"
+                value={summary.total}
+                icon="cash-outline"
+                color={COLORS.primary}
+              />
+              <KPI
+                title="Đã thu"
+                value={summary.paid}
+                icon="checkmark-circle-outline"
+                color={COLORS.success}
+              />
+              <KPI
+                title="Chưa thu"
+                value={summary.pending}
+                icon="time-outline"
+                color={COLORS.warning}
+              />
+            </View>
+
+            {/* CONTENT */}
+            {activeTab === "chart" ? (
+              chartData.labels.length > 0 ? (
+                <LineChart
+                  data={{
+                    labels: chartData.labels,
+                    datasets: [
+                      { data: chartData.total },
+                      { data: chartData.paid },
+                    ],
+                    legend: ["Tổng", "Đã thu"],
+                  }}
+                  width={screenWidth - SPACING.lg * 2}
+                  height={260}
+                  chartConfig={{
+                    backgroundGradientFrom: "#fff",
+                    backgroundGradientTo: "#fff",
                     color: () => COLORS.primary,
-                    strokeWidth: 2,
-                  },
-                  {
-                    data: revenueData.paidRevenue,
-                    color: () => COLORS.success,
-                    strokeWidth: 2,
-                  },
-                ],
-                legend: ["Tổng doanh thu", "Đã thanh toán"],
-              }}
-              width={screenWidth - SPACING.lg * 2}
-              height={250}
-              chartConfig={{
-                backgroundGradientFrom: "#fff",
-                backgroundGradientTo: "#fff",
-                color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(0,0,0,${opacity})`,
-                strokeWidth: 2,
-                decimalPlaces: 0,
-              }}
-              style={{ borderRadius: 20 }}
-            />
-          ) : (
-            <Text
-              style={{
-                textAlign: "center",
-                marginTop: 50,
-                color: "#777",
-              }}
+                    labelColor: () => "#334155",
+                    decimalPlaces: 0,
+                  }}
+                  style={{ borderRadius: 20 }}
+                />
+              ) : (
+                <Text style={{ textAlign: "center", color: "#64748B" }}>
+                  Không có dữ liệu
+                </Text>
+              )
+            ) : (
+              <FlatList
+                data={bills}
+                keyExtractor={(i) => i.id}
+                renderItem={BillItem}
+                scrollEnabled={false}
+              />
+            )}
+          </ScrollView>
+
+          {/* ===== BOTTOM TAB ===== */}
+          <View style={styles.bottomTab}>
+            <TouchableOpacity
+              style={[styles.tabBtn, activeTab === "chart" && styles.tabActive]}
+              onPress={() => setActiveTab("chart")}
             >
-              Không có dữ liệu doanh thu
-            </Text>
-          )}
-        </ScrollView>
+              <Ionicons
+                name="analytics-outline"
+                size={22}
+                color={activeTab === "chart" ? "#FFF" : "#64748B"}
+              />
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "chart" && { color: "#FFF" },
+                ]}
+              >
+                Biểu đồ
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabBtn, activeTab === "bill" && styles.tabActive]}
+              onPress={() => setActiveTab("bill")}
+            >
+              <Ionicons
+                name="receipt-outline"
+                size={22}
+                color={activeTab === "bill" ? "#FFF" : "#64748B"}
+              />
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "bill" && { color: "#FFF" },
+                ]}
+              >
+                Hóa đơn
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* DATE PICKER */}
+      {pickerType && (
+        <DateTimePicker
+          value={pickerType === "from" ? fromDate : toDate}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={(e, d) => {
+            setPickerType(null);
+            if (!d) return;
+            pickerType === "from" ? setFromDate(d) : setToDate(d);
+          }}
+        />
       )}
     </View>
   );
 }
+
+/* ================= STYLES ================= */
+const styles = {
+  header: {
+    height: 120,
+    paddingTop: Platform.OS === "ios" ? 65 : 40,
+    justifyContent: "center",
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  backBtn: {
+    position: "absolute",
+    left: 20,
+    top: Platform.OS === "ios" ? 60 : 40,
+  },
+  headerTitle: {
+    color: "#FFF",
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+
+  filterRow: {
+    flexDirection: "row",
+    backgroundColor: "#E5E7EB",
+    borderRadius: 14,
+    marginBottom: 16,
+  },
+  filterBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 14,
+  },
+  filterActive: {
+    backgroundColor: COLORS.primary,
+  },
+
+  dateRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
+  dateBox: {
+    flex: 1,
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dateText: { fontWeight: "600", color: "#334155" },
+
+  kpiRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 16,
+    elevation: 3,
+  },
+  kpiIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  kpiTitle: { fontSize: 13, color: "#64748B" },
+  kpiValue: { fontSize: 18, fontWeight: "800" },
+
+  billCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: "row",
+  },
+  billCode: { fontWeight: "800", fontSize: 14 },
+  billDate: { color: "#64748B", fontSize: 12, marginTop: 4 },
+  billAmount: { fontWeight: "800", fontSize: 15 },
+  billStatus: { fontSize: 12, marginTop: 4 },
+
+  bottomTab: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    backgroundColor: "#FFF",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  tabBtn: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+  },
+  tabActive: {
+    backgroundColor: COLORS.primary,
+    marginHorizontal: 12,
+    borderRadius: 14,
+  },
+  tabText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+};

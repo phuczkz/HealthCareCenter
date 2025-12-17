@@ -12,8 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import theme from "../../theme/theme";
 
-const { COLORS, GRADIENTS, SPACING, BORDER_RADIUS, FONT_WEIGHT, SHADOWS } =
-  theme;
+const { COLORS, GRADIENTS, SPACING, BORDER_RADIUS } = theme;
 
 export default function BookingOptionsScreen() {
   const navigation = useNavigation();
@@ -42,8 +41,6 @@ export default function BookingOptionsScreen() {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
-          activeOpacity={0.7}
-          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
         >
           <Ionicons name="arrow-back" size={26} color="#FFF" />
         </TouchableOpacity>
@@ -60,31 +57,31 @@ export default function BookingOptionsScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.content}
       >
         {options.map((item, index) => (
           <TouchableOpacity
             key={index}
             style={styles.card}
-            activeOpacity={0.88}
+            activeOpacity={0.9}
             onPress={() => navigation.navigate(item.screen)}
           >
             <LinearGradient
               colors={item.gradient}
-              style={styles.cardGradient}
+              style={styles.gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <View style={styles.iconWrapper}>
+              <View style={styles.icon}>
                 <Ionicons name={item.icon} size={28} color="#FFF" />
               </View>
 
-              <View style={styles.textWrapper}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
+              <View style={styles.text}>
+                <Text style={styles.title}>{item.title}</Text>
+                <Text style={styles.subtitle}>{item.subtitle}</Text>
               </View>
 
-              <View style={styles.rightSide}>
+              <View style={styles.right}>
                 {item.badge && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{item.badge}</Text>
@@ -96,7 +93,7 @@ export default function BookingOptionsScreen() {
           </TouchableOpacity>
         ))}
 
-        <View style={styles.securityNote}>
+        <View style={styles.note}>
           <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
           <Text style={styles.noteText}>
             Thông tin của bạn được bảo mật 100% theo tiêu chuẩn HIPAA
@@ -108,10 +105,8 @@ export default function BookingOptionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -121,8 +116,8 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
     borderBottomLeftRadius: BORDER_RADIUS.xxxl,
     borderBottomRightRadius: BORDER_RADIUS.xxxl,
-    ...SHADOWS.medium,
   },
+
   backBtn: {
     width: 48,
     height: 48,
@@ -130,114 +125,103 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.25)",
     justifyContent: "center",
     alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
   },
+
   titleWrapper: {
     flex: 1,
     alignItems: "center",
     paddingHorizontal: 20,
   },
+
   headerTitle: {
     fontSize: 23,
     fontWeight: "800",
     color: "#FFF",
-    letterSpacing: 0.5,
   },
+
   headerSubtitle: {
     fontSize: 14.5,
-    color: "rgba(255,255,255,0.95)",
+    color: "rgba(255,255,255,0.9)",
     marginTop: 6,
-    fontWeight: "500",
   },
-  scrollContent: {
-    paddingHorizontal: SPACING.xl,
+
+  content: {
+    padding: SPACING.xl,
     paddingTop: SPACING.xl,
-    paddingBottom: SPACING.xxxl + 20,
+    paddingBottom: 100,
   },
+
   card: {
     marginBottom: SPACING.lg,
     borderRadius: BORDER_RADIUS.xl,
     overflow: "hidden",
-    ...SHADOWS.card,
   },
-  cardGradient: {
+
+  gradient: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: SPACING.xl,
-    paddingHorizontal: SPACING.xl,
-    minHeight: 96,
+    padding: SPACING.xl,
+    minHeight: 100,
   },
-  iconWrapper: {
+
+  icon: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.28)",
+    backgroundColor: "rgba(255,255,255,0.25)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: SPACING.lg,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.3)",
   },
-  textWrapper: {
+
+  text: {
     flex: 1,
-    paddingRight: SPACING.md,
   },
-  cardTitle: {
+
+  title: {
     fontSize: 18,
     fontWeight: "700",
     color: "#FFF",
-    letterSpacing: 0.3,
   },
-  cardSubtitle: {
+
+  subtitle: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.92)",
+    color: "rgba(255,255,255,0.9)",
     marginTop: 4,
-    lineHeight: 20,
   },
-  rightSide: {
+
+  right: {
     alignItems: "flex-end",
-    justifyContent: "center",
   },
+
   badge: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    backgroundColor: "#FFF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    marginBottom: 10,
-    minWidth: 72,
-    alignItems: "center",
+    marginBottom: 8,
   },
+
   badgeText: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: "900",
     color: "#7C3AED",
-    letterSpacing: 0.8,
   },
-  securityNote: {
+
+  note: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F0F9FF",
     padding: SPACING.xl,
     borderRadius: BORDER_RADIUS.xl,
-    marginTop: SPACING.xxl,
+    marginTop: SPACING.xl,
     borderWidth: 1.5,
     borderColor: "#BAE6FD",
-    ...SHADOWS.small,
   },
+
   noteText: {
     marginLeft: SPACING.lg,
     fontSize: 15,
-    fontWeight: "600",
     color: COLORS.primary,
     flex: 1,
     lineHeight: 22,

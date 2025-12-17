@@ -21,6 +21,8 @@ import CreateServiceScreen from "../screens/admin/CreateServiceScreen";
 import ManageServicesScreen from "../screens/admin/ManageServicesScreen";
 import EditDoctorScreen from "../screens/admin/EditDoctorScreen";
 import EditServiceScreen from "../screens/admin/EditServiceScreen";
+import ManageRoom from "../screens/admin/ManageRoom";
+import MedicinesScreen from "../screens/admin/MedicinesScreen";
 
 // DOCTOR
 import DoctorHomeScreen from "../screens/doctor/DoctorHomeScreen";
@@ -31,6 +33,9 @@ import PatientStatisticsScreen from "../screens/doctor/PatientStatisticsScreen";
 import PaymentSummaryScreen from "../screens/doctor/PaymentSummaryScreen";
 import OrderTestsScreen from "../screens/doctor/OrderTestsScreen";
 import FinalizeRecordScreen from "../screens/doctor/FinalizeRecordScreen";
+import ViewMedicalRecordDetailScreen from "../screens/doctor/ViewMedicalRecordDetailScreen";
+import WorkSchedule from "../screens/doctor/WorkSchedule";
+import DoctorWorkScheduleScreen from "../screens/doctor/DoctorWorkScheduleScreen";
 
 // LAB TECHNICIAN
 import LabPendingTestsScreen from "../screens/Lab_Technician/LabPendingTestsScreen";
@@ -43,6 +48,7 @@ import LabDashboard from "../screens/Lab_Technician/LabDashboard";
 import PatientStack from "./PatientStack";
 import ReceptionTabs from "./ReceptionTabs";
 import AccountantTabs from "./AccountantTabs";
+import BillingScreen from "../screens/accountant/BillingScreen";
 
 const Stack = createStackNavigator();
 
@@ -108,6 +114,8 @@ export default function AppNavigator() {
       <Stack.Screen name="AdminHome" component={AdminHomeScreen} />
       <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
       <Stack.Screen name="ManageDoctors" component={ManageDoctorsScreen} />
+      <Stack.Screen name="ManageRoom" component={ManageRoom} />
+      <Stack.Screen name="Medicines" component={MedicinesScreen} />
       <Stack.Screen
         name="CreateDoctorAccount"
         component={CreateDoctorAccountScreen}
@@ -127,6 +135,14 @@ export default function AppNavigator() {
 
       {/* DOCTOR */}
       <Stack.Screen name="DoctorHome" component={DoctorHomeScreen} />
+      <Stack.Screen
+        name="DoctorWorkSchedule"
+        component={DoctorWorkScheduleScreen}
+      />
+      <Stack.Screen
+        name="ViewMedicalRecord"
+        component={ViewMedicalRecordDetailScreen}
+      />
       <Stack.Screen
         name="DoctorAppointments"
         component={DoctorAppointmentsScreen}
@@ -158,6 +174,7 @@ export default function AppNavigator() {
       <Stack.Screen name="PatientStack" component={PatientStack} />
       <Stack.Screen name="ReceptionTabs" component={ReceptionTabs} />
       <Stack.Screen name="AccountantTabs" component={AccountantTabs} />
+      <Stack.Screen name="BillingScreen" component={BillingScreen} />
     </Stack.Navigator>
   );
 }

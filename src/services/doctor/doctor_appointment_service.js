@@ -1,18 +1,22 @@
-import { supabase } from '../../api/supabase';
+import { supabase } from "../../api/supabase";
 
 export const DoctorAppointmentService = {
   async getDoctorId() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Chưa đăng nhập');
-    console.log('DOCTOR ID:', user.id);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Chưa đăng nhập");
     return user.id;
   },
 
   async getAppointmentsByDoctor(doctorId) {
     try {
-      const { data: appointments = [] } = await supabase
-        .from('appointments')
-        .select(`
+      console.log("Đang tải lịch cho bác sĩ ID:", doctorId);
+
+      const { data: appointments = [], error } = await supabase
+        .from("appointments")
+        .select(
+          `
           id,
           user_id,
           patient_name,
@@ -21,67 +25,85 @@ export const DoctorAppointmentService = {
           symptoms,
           status,
           created_at,
-          doctor_schedule_template!inner(start_time, end_time)
-        `)
-        .eq('doctor_id', doctorId)
-        .order('appointment_date', { ascending: true });
+          price,
+          slot_id,
+          doctor_id,
+          doctors!doctor_id (
+            id,
+            name,
+            room_number,
+            service_id,
+            services!service_id (
+              id,
+              name
+            )
+          ),
+          doctor_schedule_template!slot_id (
+            start_time,
+            end_time
+          ),
+          user_profiles!user_id (
+            id,
+            full_name,
+            phone,
+            avatar_url
+          )
+        `
+        )
+        .eq("doctor_id", doctorId)
+        .order("appointment_date", { ascending: true });
 
-      const patientIds = [...new Set(appointments.map(a => a.user_id).filter(Boolean))];
-      let patients = [];
-      if (patientIds.length > 0) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, full_name, phone, avatar_url')
-          .in('id', patientIds);
-        patients = data || [];
-      }
+      if (error) throw error;
+      if (appointments.length === 0) return [];
 
-      let roomNumber = 'Chưa có phòng';
-      try {
-        const { data: doc } = await supabase
-          .from('doctors')
-          .select('room_number')
-          .eq('id', doctorId)
-          .maybeSingle();
-        if (doc?.room_number) roomNumber = doc.room_number.trim();
-      } catch (e) {}
+      // Lấy thông tin bác sĩ + chuyên khoa (chỉ 1 lần)
+      const doctorInfo = appointments[0].doctors;
+      const roomNumber = doctorInfo?.room_number?.trim() || "Chưa có phòng";
+      const serviceName = doctorInfo?.services?.name || "Khám tổng quát";
 
-      let specializationText = 'Chưa xác định chuyên khoa';
-      try {
-        const { data: specs = [] } = await supabase
-          .from('doctor_specializations')
-          .select('specialization')
-          .eq('doctor_id', doctorId);
-        if (specs.length > 0) {
-          specializationText = specs.map(s => s.specialization.trim()).join(' • ');
-        }
-      } catch (e) {}
-
-      // 5. GỘP DỮ LIỆU
-      const result = appointments.map(appt => {
+      const result = appointments.map((appt) => {
         const slot = appt.doctor_schedule_template || {};
-        const patientProfile = patients.find(p => p.id === appt.user_id);
+        const patient = appt.user_profiles || {};
 
         return {
-          ...appt,
-          timeDisplay: slot.start_time && slot.end_time
-            ? `${slot.start_time.slice(0,5)} - ${slot.end_time.slice(0,5)}`
-            : 'Chưa xác định',
-          patient: {
-            full_name: patientProfile?.full_name || appt.patient_name || 'Bệnh nhân',
-            phone: patientProfile?.phone || appt.patient_phone || '',
-            avatar_url: patientProfile?.avatar_url || null,
-          },
+          id: appt.id,
+          user_id: appt.user_id,
+          patient_name: patient.full_name || appt.patient_name || "Bệnh nhân",
+          patient_phone: patient.phone || appt.patient_phone || "",
+          appointment_date: appt.appointment_date,
+          symptoms: appt.symptoms,
+          status: appt.status,
+          price: appt.price || 180000,
+
+          // CHUYÊN KHOA ĐÚNG 100% TỪ BÁC SĨ
+          service_name: serviceName,
+
+          // Giờ khám
+          timeDisplay:
+            slot.start_time && slot.end_time
+              ? `${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)}`
+              : "Chưa xác định",
+
+          // Thông tin bác sĩ
+          doctor_name: doctorInfo?.name || "Bác sĩ",
           doctor_room_number: roomNumber,
-          doctor_specialization_text: specializationText,
+
+          // Tương thích code cũ
+          patient: {
+            full_name: patient.full_name || appt.patient_name || "Bệnh nhân",
+            phone: patient.phone || appt.patient_phone || "",
+            avatar_url: patient.avatar_url || null,
+          },
+          doctor_specialization_text: serviceName,
         };
       });
 
-      console.log(`HOÀN TẤT → ${result.length} lịch | Phòng: ${roomNumber} | Chuyên khoa: ${specializationText}`);
+      console.log(
+        `ĐÃ TẢI ${result.length} LỊCH – Chuyên khoa: ${serviceName} – Phòng: ${roomNumber}`
+      );
       return result;
-
     } catch (err) {
-      console.error('Lỗi service:', err);
+      console.error("Lỗi tải lịch bác sĩ:", err.message || err);
       return [];
     }
   },

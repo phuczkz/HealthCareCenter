@@ -29,69 +29,88 @@ export default function CreateDoctorAccountScreen() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [department, setDepartment] = useState(""); // tên khoa hiển thị
-  const [departmentId, setDepartmentId] = useState(null); // service_id thật
-  const [selectedSpecs, setSelectedSpecs] = useState([]);
+  const [department, setDepartment] = useState(""); // Khoa: Tim mạch, Da liễu...
+  const [specialization, setSpecialization] = useState(""); // Chuyên môn: Khám chuyên khoa Tim mạch
+  const [serviceId, setServiceId] = useState(null); // ID dịch vụ khám
   const [roomNumber, setRoomNumber] = useState("");
-  const [experienceYears, setExperienceYears] = useState(""); // có lại rồi nhé
+  const [experienceYears, setExperienceYears] = useState("");
   const [maxPatients, setMaxPatients] = useState("10");
   const [bio, setBio] = useState("");
 
   // Data
-  const [departments, setDepartments] = useState([]);
-  const [allSpecializations, setAllSpecializations] = useState([]);
+  const [departments, setDepartments] = useState([]); // Danh sách khoa
+  const [specializations, setSpecializations] = useState([]); // Danh sách chuyên môn theo khoa
   const [availableRooms, setAvailableRooms] = useState([]);
 
-  // Modal state
+  // Modal
   const [deptModal, setDeptModal] = useState(false);
   const [specModal, setSpecModal] = useState(false);
   const [roomModal, setRoomModal] = useState(false);
   const [searchDept, setSearchDept] = useState("");
   const [searchSpec, setSearchSpec] = useState("");
   const [searchRoom, setSearchRoom] = useState("");
-
-  // Animation FIX cho Expo mới
   const modalAnim = useRef(new Animated.Value(0)).current;
 
-  // Fetch khoa
+  // 1. LẤY TẤT CẢ KHOA (department) TỪ services
   useEffect(() => {
-    const fetchDepts = async () => {
+    const fetchDepartments = async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("id, department")
+        .select("department")
         .not("department", "is", null)
+        .eq("is_active", true)
         .order("department");
 
-      if (error) return console.error(error);
+      if (error) {
+        console.error("Lỗi lấy khoa:", error);
+        return;
+      }
 
-      const map = new Map();
-      data.forEach((item) => {
-        if (!map.has(item.department)) map.set(item.department, item.id);
-      });
-      const unique = Array.from(map.entries())
-        .map(([name, id]) => ({ id, name }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setDepartments(unique);
+      const uniqueDepts = [
+        ...new Set(data?.map((item) => item.department.trim()).filter(Boolean)),
+      ];
+      setDepartments(uniqueDepts.sort());
     };
-    fetchDepts();
+    fetchDepartments();
   }, []);
 
-  // Fetch chuyên môn theo khoa
+  // 2. KHI CHỌN KHOA → LẤY TẤT CẢ CHUYÊN MÔN (name) CỦA KHOA ĐÓ
   useEffect(() => {
-    const fetchSpecs = async () => {
-      let query = supabase
-        .from("specializations")
-        .select("name")
-        .eq("is_active", true);
-      if (department)
-        query = query.or(`department.eq.${department},department.is.null`);
-      const { data } = await query.order("name");
-      setAllSpecializations(data?.map((s) => s.name) || []);
+    const fetchSpecializations = async () => {
+      if (!department) {
+        setSpecializations([]);
+        setSpecialization("");
+        setServiceId(null);
+        return;
+      }
+
+      const cleanDept = department.trim();
+
+      // TÌM THEO department CHÍNH XÁC + ilike (đảm bảo không bỏ sót)
+      const { data, error } = await supabase
+        .from("services")
+        .select("id, name, price")
+        .eq("is_active", true)
+        .or(`department.eq.${cleanDept},department.ilike.%${cleanDept}%`)
+        .order("name");
+
+      if (error || !data || data.length === 0) {
+        console.log("Không tìm thấy chuyên môn cho khoa:", cleanDept);
+        setSpecializations([]);
+        return;
+      }
+
+      console.log(
+        `Tìm thấy ${data.length} chuyên môn cho khoa "${cleanDept}":`,
+        data
+      );
+      setSpecializations(data);
     };
-    fetchSpecs();
+
+    fetchSpecializations();
   }, [department]);
 
-  // Fetch phòng trống
+  // 3. LẤY PHÒNG TRỐNG – CHỈ LẤY PHÒNG CHƯA CÓ BÁC SĨ VÀ is_active = true
   useEffect(() => {
     const fetchRooms = async () => {
       if (!department) {
@@ -99,36 +118,37 @@ export default function CreateDoctorAccountScreen() {
         setRoomNumber("");
         return;
       }
+
       const { data } = await supabase
         .from("clinic_rooms")
         .select("room_number")
         .or(`department.eq.${department},department.is.null`)
-        .is("doctor_id", null)
-        .eq("is_active", true)
+        .is("doctor_id", null) // chưa có bác sĩ
+        .eq("is_active", true) // chỉ lấy phòng đang hoạt động
         .order("room_number");
 
       const rooms = data?.map((r) => r.room_number) || [];
       setAvailableRooms(rooms);
-      if (roomNumber && !rooms.includes(roomNumber)) setRoomNumber("");
+
+      // Nếu phòng đang chọn đã bị chiếm → reset
+      if (roomNumber && !rooms.includes(roomNumber)) {
+        setRoomNumber("");
+        Alert.alert("Thông báo", "Phòng này đã được bác sĩ khác chọn!");
+      }
     };
     fetchRooms();
   }, [department]);
 
   // Filter
   const filteredDepts = departments.filter((d) =>
-    d.name.toLowerCase().includes(searchDept.toLowerCase())
+    d.toLowerCase().includes(searchDept.toLowerCase())
   );
-  const filteredSpecs = allSpecializations.filter((s) =>
-    s.toLowerCase().includes(searchSpec.toLowerCase())
+  const filteredSpecs = specializations.filter((s) =>
+    s.name.toLowerCase().includes(searchSpec.toLowerCase())
   );
   const filteredRooms = availableRooms.filter((r) =>
     r.toLowerCase().includes(searchRoom.toLowerCase())
   );
-
-  const toggleSpec = (spec) =>
-    setSelectedSpecs((prev) =>
-      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
-    );
 
   const getFloor = (room) => {
     const num = parseInt(room, 10);
@@ -136,21 +156,21 @@ export default function CreateDoctorAccountScreen() {
   };
 
   const validate = () => {
-    if (!fullName.trim()) return Alert.alert("Lỗi", "Nhập họ tên bác sĩ");
+    if (!fullName.trim())
+      return Alert.alert("Lỗi", "Vui lòng nhập họ tên bác sĩ");
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return Alert.alert("Lỗi", "Email không hợp lệ");
     if (password.length < 6)
       return Alert.alert("Lỗi", "Mật khẩu ít nhất 6 ký tự");
-    if (!department) return Alert.alert("Lỗi", "Chọn khoa");
-    if (selectedSpecs.length === 0)
-      return Alert.alert("Lỗi", "Chọn ít nhất 1 chuyên môn");
-    if (!roomNumber) return Alert.alert("Lỗi", "Chọn phòng khám");
+    if (!department) return Alert.alert("Lỗi", "Vui lòng chọn khoa");
+    if (!specialization) return Alert.alert("Lỗi", "Vui lòng chọn chuyên môn");
+    if (!roomNumber) return Alert.alert("Lỗi", "Vui lòng chọn phòng khám");
     if (
-      !experienceYears.trim() ||
+      !experienceYears ||
       isNaN(experienceYears) ||
       Number(experienceYears) < 0
     )
-      return Alert.alert("Lỗi", "Nhập số năm kinh nghiệm hợp lệ");
+      return Alert.alert("Lỗi", "Số năm kinh nghiệm không hợp lệ");
     return true;
   };
 
@@ -162,18 +182,17 @@ export default function CreateDoctorAccountScreen() {
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
         password,
-        service_id: departmentId,
+        service_id: serviceId,
         department_name: department,
-        specialization: selectedSpecs.join(", "),
+        specialization: specialization,
         experience_years: Number(experienceYears),
         room_number: roomNumber,
-        max_patients_per_slot: Number(maxPatients),
+        max_patients_per_slot: Number(maxPatients || 10),
         bio: bio.trim() || null,
       },
     });
   };
 
-  // Modal Animation - ĐÃ FIX HOÀN TOÀN CHO EXPO MỚI
   const openModal = (type) => {
     if (type === "dept") setDeptModal(true);
     if (type === "spec") setSpecModal(true);
@@ -208,7 +227,7 @@ export default function CreateDoctorAccountScreen() {
     >
       <StatusBar barStyle="light-content" />
 
-      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
+      <LinearGradient colors={["#2563EB", "#1E40AF"]} style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
@@ -250,7 +269,7 @@ export default function CreateDoctorAccountScreen() {
           secureTextEntry
         />
 
-        {/* Khoa */}
+        {/* KHOA */}
         <View style={styles.section}>
           <Text style={styles.label}>Khoa làm việc *</Text>
           <TouchableOpacity
@@ -269,39 +288,30 @@ export default function CreateDoctorAccountScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Chuyên môn */}
+        {/* CHUYÊN MÔN */}
         <View style={styles.section}>
-          <Text style={styles.label}>
-            Chuyên môn chính * ({selectedSpecs.length})
-          </Text>
+          <Text style={styles.label}>Chuyên môn chính *</Text>
           <TouchableOpacity
-            style={[
-              styles.selectBox,
-              selectedSpecs.length > 0 && styles.active,
-            ]}
+            style={[styles.selectBox, specialization && styles.active]}
             onPress={() => openModal("spec")}
+            disabled={!department}
           >
             <Ionicons
               name="medkit"
               size={22}
-              color={selectedSpecs.length > 0 ? COLORS.success : "#999"}
+              color={specialization ? COLORS.success : "#999"}
             />
             <Text
-              style={[
-                styles.selectText,
-                selectedSpecs.length > 0 && styles.activeText,
-              ]}
+              style={[styles.selectText, specialization && styles.activeText]}
               numberOfLines={2}
             >
-              {selectedSpecs.length === 0
-                ? "Chọn ít nhất 1 chuyên môn"
-                : selectedSpecs.join(" • ")}
+              {specialization || "Chọn chuyên môn"}
             </Text>
             <Ionicons name="chevron-down" size={22} color="#666" />
           </TouchableOpacity>
         </View>
 
-        {/* Phòng khám */}
+        {/* PHÒNG KHÁM */}
         <View style={styles.section}>
           <Text style={styles.label}>
             Phòng khám * {roomNumber && `(${getFloor(roomNumber)})`}
@@ -324,7 +334,6 @@ export default function CreateDoctorAccountScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Năm kinh nghiệm */}
         <InputField
           label="Số năm kinh nghiệm *"
           icon="briefcase"
@@ -333,7 +342,6 @@ export default function CreateDoctorAccountScreen() {
           placeholder="15"
           keyboardType="numeric"
         />
-
         <InputField
           label="Số bệnh nhân tối đa/ca"
           icon="people"
@@ -375,7 +383,7 @@ export default function CreateDoctorAccountScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* MODAL - ĐÃ FIX ANIMATION */}
+      {/* MODAL */}
       <Modal
         visible={deptModal || specModal || roomModal}
         transparent
@@ -434,7 +442,6 @@ export default function CreateDoctorAccountScreen() {
                   : setSearchRoom
               }
               style={styles.searchInput}
-              keyboardType={roomModal ? "numeric" : "default"}
             />
           </View>
 
@@ -449,14 +456,15 @@ export default function CreateDoctorAccountScreen() {
             keyExtractor={(_, i) => i.toString()}
             renderItem={({ item }) => {
               const displayText = deptModal
-                ? item.name
-                : specModal
                 ? item
-                : `${item} (${getFloor(item)})`;
-              const isSelected = deptModal
-                ? department === item.name
                 : specModal
-                ? selectedSpecs.includes(item)
+                ? item.name
+                : `${item} (${getFloor(item)})`;
+
+              const isSelected = deptModal
+                ? department === item
+                : specModal
+                ? specialization === item.name
                 : roomNumber === item;
 
               return (
@@ -464,12 +472,12 @@ export default function CreateDoctorAccountScreen() {
                   style={styles.modalItem}
                   onPress={() => {
                     if (deptModal) {
-                      setDepartment(item.name);
-                      setDepartmentId(item.id);
-                      setRoomNumber("");
-                      setSelectedSpecs([]);
+                      setDepartment(item);
+                      setSpecialization("");
+                      setServiceId(null);
                     } else if (specModal) {
-                      toggleSpec(item);
+                      setSpecialization(item.name);
+                      setServiceId(item.id);
                     } else {
                       setRoomNumber(item);
                     }
@@ -494,7 +502,7 @@ export default function CreateDoctorAccountScreen() {
   );
 }
 
-// Component
+// INPUT FIELD + STYLES HOÀN CHỈNH
 const InputField = ({ label, icon, ...props }) => (
   <View style={styles.section}>
     <Text style={styles.label}>{label}</Text>
@@ -505,7 +513,6 @@ const InputField = ({ label, icon, ...props }) => (
   </View>
 );
 
-// Styles đẹp như cũ
 const styles = {
   header: {
     flexDirection: "row",

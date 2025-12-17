@@ -103,9 +103,6 @@ export default function ManageDoctorsScreen() {
     fetchDoctors(true);
   }, []);
 
-  // ==========================
-  //     RENDER CARD
-  // ==========================
   const renderDoctorItem = ({ item }) => {
     const avatarLetter = item.full_name.charAt(0).toUpperCase();
     const specsText =
@@ -126,7 +123,6 @@ export default function ManageDoctorsScreen() {
         }
       >
         <View style={styles.card}>
-          {/* Avatar */}
           <LinearGradient
             colors={GRADIENTS.primaryButton}
             style={styles.avatar}
@@ -134,7 +130,6 @@ export default function ManageDoctorsScreen() {
             <Text style={styles.avatarLetter}>{avatarLetter}</Text>
           </LinearGradient>
 
-          {/* INFO */}
           <View style={styles.cardInfo}>
             <Text style={styles.name}>{item.full_name}</Text>
 
@@ -157,7 +152,6 @@ export default function ManageDoctorsScreen() {
             )}
           </View>
 
-          {/* EDIT BUTTON */}
           <TouchableOpacity
             style={styles.editBtn}
             onPress={(e) => {
@@ -185,7 +179,7 @@ export default function ManageDoctorsScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
+      <LinearGradient colors={["#2563EB", "#1E40AF"]} style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.navigate("AdminHome")}
           style={styles.backBtn}
@@ -203,7 +197,6 @@ export default function ManageDoctorsScreen() {
         </TouchableOpacity>
       </LinearGradient>
 
-      {/* SEARCH */}
       <View style={styles.searchBar}>
         <Ionicons name="search" size={20} color="#94A3B8" />
         <TextInput
@@ -222,7 +215,6 @@ export default function ManageDoctorsScreen() {
         ) : null}
       </View>
 
-      {/* LIST */}
       <FlatList
         data={filteredDoctors}
         keyExtractor={(item) => item.id}
@@ -250,7 +242,6 @@ export default function ManageDoctorsScreen() {
         }
       />
 
-      {/* FAB */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate("CreateDoctorAccount")}
@@ -312,9 +303,6 @@ const styles = {
     color: COLORS.textPrimary,
   },
 
-  // ==========================
-  //      CARD STYLE ĐẸP
-  // ==========================
   cardWrapper: { marginBottom: SPACING.lg },
 
   card: {

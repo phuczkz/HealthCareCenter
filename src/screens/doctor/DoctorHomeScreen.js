@@ -1,38 +1,40 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
-  StyleSheet,
   TouchableOpacity,
   Animated,
   Platform,
+  StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../api/supabase";
 import { getUserProfile } from "../../controllers/patient/userController";
-import {
-  COLORS,
-  SPACING,
-  FONT_SIZE,
-  BORDER_RADIUS,
-  FONT_WEIGHT,
-  SHADOWS,
-  GRADIENTS,
-} from "../../theme/theme";
 
 export default function DoctorHomeScreen() {
   const navigation = useNavigation();
   const [displayName, setDisplayName] = useState("Bác sĩ");
+  const [stats, setStats] = useState({
+    todayAppointments: 0,
+    monthPatients: 0,
+    averageRating: "0.0",
+    totalRatings: 0,
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
+    const fetchAll = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // 1. Lấy tên bác sĩ
         const profile = await getUserProfile(user.id);
         setDisplayName(
           profile?.full_name ||
@@ -40,48 +42,103 @@ export default function DoctorHomeScreen() {
             user.email.split("@")[0] ||
             "Bác sĩ"
         );
+
+        // 2. Lấy lịch khám hôm nay & tháng này
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        const { data: appointments } = await supabase
+          .from("appointments")
+          .select("status, appointment_date, created_at")
+          .eq("doctor_id", user.id);
+
+        const todayCount = (appointments || []).filter((a) => {
+          if (!a.appointment_date) return false;
+          const d = new Date(a.appointment_date);
+          return (
+            d.toDateString() === today.toDateString() &&
+            ![
+              "completed",
+              "cancelled",
+              "patient_cancelled",
+              "doctor_cancelled",
+            ].includes(a.status)
+          );
+        }).length;
+
+        const monthCount = (appointments || []).filter((a) => {
+          if (!a.created_at) return false;
+          return new Date(a.created_at) >= monthStart;
+        }).length;
+
+        // 3. Lấy đánh giá trung bình và tổng lượt đánh giá
+        const { data: ratingsData, error: ratingsError } = await supabase
+          .from("doctor_ratings")
+          .select("rating")
+          .eq("doctor_id", user.id);
+
+        let averageRating = "0.0";
+        let totalRatings = 0;
+
+        if (!ratingsError && ratingsData && ratingsData.length > 0) {
+          totalRatings = ratingsData.length;
+          const sum = ratingsData.reduce((acc, curr) => acc + curr.rating, 0);
+          averageRating = (sum / totalRatings).toFixed(1); // Làm tròn 1 chữ số thập phân
+        }
+
+        setStats({
+          todayAppointments: todayCount,
+          monthPatients: monthCount,
+          averageRating,
+          totalRatings,
+        });
+      } catch (err) {
+        console.error("Lỗi tải dữ liệu home bác sĩ:", err);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchProfile();
+
+    fetchAll();
   }, []);
 
   const menu = [
     {
-      title: "Lịch làm việc",
-      icon: "calendar-outline",
+      title: "Lịch khám",
+      icon: "calendar",
       screen: "DoctorAppointments",
-      subtitle: "Xem lịch hôm nay",
+      color: "#3B82F6",
     },
     {
-      title: "Hồ sơ cá nhân",
-      icon: "person-outline",
+      title: "Hồ sơ",
+      icon: "person",
       screen: "DoctorProfile",
-      subtitle: "Thông tin & chứng chỉ",
+      color: "#8B5CF6",
     },
     {
-      title: "Bệnh nhân",
-      icon: "people-outline",
-      screen: "PatientList",
-      subtitle: "Quản lý hồ sơ",
+      title: "Lịch làm việc",
+      icon: "time",
+      screen: "DoctorWorkSchedule",
+      color: "#10B981",
     },
     {
       title: "Thống kê",
-      icon: "bar-chart-outline",
+      icon: "bar-chart",
       screen: "PatientStatistics",
-      subtitle: "Doanh thu & hiệu suất",
+      color: "#F59E0B",
     },
   ];
 
-  const scales = useRef(menu.map(() => new Animated.Value(1))).current;
-
-  const animatePress = (index) => {
+  const scales = menu.map(() => new Animated.Value(1));
+  const animatePress = (i) => {
     Animated.sequence([
-      Animated.timing(scales[index], {
+      Animated.timing(scales[i], {
         toValue: 0.94,
         duration: 100,
         useNativeDriver: true,
       }),
-      Animated.timing(scales[index], {
+      Animated.timing(scales[i], {
         toValue: 1,
         duration: 100,
         useNativeDriver: true,
@@ -89,184 +146,244 @@ export default function DoctorHomeScreen() {
     ]).start();
   };
 
-  return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* HEADER – ĐẸP, KHÔNG BỊ ĐÈ */}
-      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.greeting}>Xin chào,</Text>
-          <Text style={styles.name}>{displayName}</Text>
-          <Text style={styles.subtitle}>
-            Chúc bạn một ngày làm việc hiệu quả!
-          </Text>
-        </View>
-        <Ionicons
-          name="heart-outline"
-          size={110}
-          color="#ffffff20"
-          style={styles.decorIcon}
-        />
-      </LinearGradient>
-
-      {/* MENU GRID – NHỎ LẠI + KHÔNG ĐÈ LÊN HEADER */}
-      <View style={styles.menuGrid}>
-        {menu.map((item, i) => (
-          <TouchableOpacity
-            key={i}
-            activeOpacity={1}
-            onPress={() => {
-              animatePress(i);
-              navigation.navigate(item.screen);
-            }}
-            style={styles.menuButton}
-          >
-            <Animated.View
-              style={[styles.menuCard, { transform: [{ scale: scales[i] }] }]}
-            >
-              <LinearGradient
-                colors={i % 2 === 0 ? GRADIENTS.appointment : GRADIENTS.health}
-                style={styles.iconCircle}
-              >
-                <Ionicons
-                  name={item.icon}
-                  size={30}
-                  color={COLORS.textOnPrimary}
-                />
-              </LinearGradient>
-
-              <Text style={styles.menuTitle}>{item.title}</Text>
-              <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
-            </Animated.View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* THÔNG BÁO NHẸ NHÀNG */}
-      <View style={styles.notificationCard}>
-        <Ionicons
-          name="notifications-outline"
-          size={20}
-          color={COLORS.accentTeal}
-        />
-        <Text style={styles.notificationText}>
-          Bạn có 3 bệnh nhân đang chờ khám
+  if (loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#F8FAFC",
+        }}
+      >
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={{ marginTop: 16, fontSize: 16, color: "#64748B" }}>
+          Đang tải...
         </Text>
       </View>
-    </ScrollView>
+    );
+  }
+
+  return (
+    <>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
+      <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+        {/* HEADER SIÊU NHỎ – SIÊU SANG */}
+        <LinearGradient colors={["#1E3A8A", "#1D4ED8"]} style={styles.header}>
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.welcome}>Xin chào,</Text>
+              <Text style={styles.name}>{displayName}</Text>
+            </View>
+            <View style={styles.todayBadge}>
+              <Ionicons name="sunny" size={16} color="#FEF08A" />
+              <Text style={styles.todayText}>
+                {stats.todayAppointments} bệnh nhân hôm nay
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
+
+        <ScrollView
+          style={{ flex: 1, marginTop: -40 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          {/* CARD CHÀO MỪNG */}
+          <View style={styles.welcomeCard}>
+            <Text style={styles.welcomeTitle}>
+              Chúc bạn ngày làm việc thật hiệu quả
+            </Text>
+            <Ionicons
+              name="sparkles"
+              size={28}
+              color="#FCD34D"
+              style={{ marginTop: 8 }}
+            />
+          </View>
+
+          {/* MENU 4 Ô */}
+          <View style={styles.menuGrid}>
+            {menu.map((item, i) => (
+              <TouchableOpacity
+                key={i}
+                activeOpacity={0.85}
+                onPress={() => {
+                  animatePress(i);
+                  setTimeout(() => navigation.navigate(item.screen), 180);
+                }}
+                style={styles.menuTouch}
+              >
+                <Animated.View
+                  style={[
+                    styles.menuBox,
+                    { transform: [{ scale: scales[i] }] },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      { backgroundColor: item.color + "22" },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.iconInner,
+                        { backgroundColor: item.color },
+                      ]}
+                    >
+                      <Ionicons name={item.icon} size={32} color="#FFF" />
+                    </View>
+                  </View>
+                  <Text style={styles.menuTitle}>{item.title}</Text>
+                </Animated.View>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* 3 Ô THỐNG KÊ – ĐÃ CẬP NHẬT ĐÁNH GIÁ THỰC TẾ */}
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statBig}>{stats.todayAppointments}</Text>
+              <Text style={styles.statSmall}>Lịch hôm nay</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statBig}>{stats.monthPatients}</Text>
+              <Text style={styles.statSmall}>Tháng này</Text>
+            </View>
+            <View style={styles.statBox}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              >
+                <Text style={styles.statBig}>{stats.averageRating}</Text>
+                <Ionicons name="star" size={28} color="#FCD34D" />
+              </View>
+              <Text style={styles.statSmall}>
+                {stats.totalRatings > 0
+                  ? `${stats.totalRatings} lượt đánh giá`
+                  : "Chưa có đánh giá"}
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
-  // Header không bị đè
+// STYLES ĐẸP NHẤT 2025
+const styles = {
   header: {
-    paddingTop: Platform.OS === "ios" ? 70 : 50,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xxl, // giảm bớt để không tràn quá
-    borderBottomLeftRadius: BORDER_RADIUS.xxl,
-    borderBottomRightRadius: BORDER_RADIUS.xxl,
-    overflow: "hidden",
+    paddingTop: Platform.OS === "ios" ? 55 : 40,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+  },
+  welcome: { fontSize: 17, color: "#BFDBFE", fontWeight: "500" },
+  name: { fontSize: 32, fontWeight: "900", color: "#FFFFFF", marginLeft: 12 },
+  todayBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  todayText: { fontSize: 14, color: "#FEFCE8", fontWeight: "600" },
+
+  welcomeCard: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingVertical: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  welcomeTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1E293B",
+    textAlign: "center",
   },
 
-  headerContent: { zIndex: 2 },
-
-  greeting: {
-    fontSize: FONT_SIZE.lg,
-    color: "#ffffffd0",
-    fontWeight: FONT_WEIGHT.medium,
-  },
-
-  name: {
-    fontSize: 34,
-    color: COLORS.textOnPrimary,
-    fontWeight: "800",
-    marginTop: 4,
-  },
-
-  subtitle: {
-    fontSize: FONT_SIZE.lg,
-    color: "#ffffffc0",
-    marginTop: 8,
-    fontWeight: FONT_WEIGHT.medium,
-  },
-
-  decorIcon: {
-    position: "absolute",
-    right: -20,
-    top: 60,
-    opacity: 0.2,
-  },
-
-  // ĐÃ SỬA: KHÔNG DÙNG marginTop âm → KHÔNG ĐÈ HEADER NỮA
   menuGrid: {
-    paddingHorizontal: SPACING.xl,
-    marginTop: SPACING.xl, // CHỈ DÙNG marginTop dương
+    paddingHorizontal: 20,
+    marginTop: 32,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-
-  menuButton: {
-    width: "48%",
-    marginBottom: SPACING.lg,
-  },
-
-  // CARD NHỎ LẠI, GỌN GÀNG HƠN
-  menuCard: {
-    backgroundColor: COLORS.surface,
-    paddingVertical: 22,
-    paddingHorizontal: 12,
-    borderRadius: BORDER_RADIUS.xl,
+  menuTouch: { width: "48%", marginBottom: 20 },
+  menuBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    paddingVertical: 28,
     alignItems: "center",
-    ...SHADOWS.card,
-    borderWidth: 1,
-    borderColor: "#e5e7eb15",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 25,
+    elevation: 15,
   },
-
   iconCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  iconInner: {
     width: 60,
     height: 60,
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: SPACING.md,
   },
+  menuTitle: { fontSize: 17, fontWeight: "700", color: "#1E293B" },
 
-  menuTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 4,
-    textAlign: "center",
-  },
-
-  menuSubtitle: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    lineHeight: 16,
-  },
-
-  notificationCard: {
+  statsRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginTop: 16,
+  },
+  statBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
     alignItems: "center",
-    marginHorizontal: SPACING.xl,
-    marginTop: SPACING.xl,
-    padding: SPACING.lg,
-    backgroundColor: "#ECFEFF",
-    borderRadius: BORDER_RADIUS.lg,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.accentCyan,
+    flex: 1,
+    marginHorizontal: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
-
-  notificationText: {
-    marginLeft: SPACING.md,
-    fontSize: FONT_SIZE.md,
-    color: COLORS.accentCyan,
-    fontWeight: FONT_WEIGHT.semibold,
+  statBig: { fontSize: 34, fontWeight: "900", color: "#1D4ED8" },
+  statSmall: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 6,
+    fontWeight: "600",
   },
-});
+};

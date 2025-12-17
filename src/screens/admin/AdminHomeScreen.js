@@ -15,14 +15,8 @@ import { supabase } from "../../api/supabase";
 import { useNavigation } from "@react-navigation/native";
 import theme from "../../theme/theme";
 
-const {
-  COLORS,
-  GRADIENTS,
-  SPACING,
-  BORDER_RADIUS,
-  FONT_WEIGHT,
-  SHADOWS,
-} = theme;
+const { COLORS, GRADIENTS, SPACING, BORDER_RADIUS, FONT_WEIGHT, SHADOWS } =
+  theme;
 
 export default function AdminHomeScreen() {
   const navigation = useNavigation();
@@ -49,7 +43,9 @@ export default function AdminHomeScreen() {
       ] = await Promise.all([
         supabase.from("doctors").select("*", { count: "exact", head: true }),
         supabase.from("patients").select("*", { count: "exact", head: true }),
-        supabase.from("user_profiles").select("*", { count: "exact", head: true }),
+        supabase
+          .from("user_profiles")
+          .select("*", { count: "exact", head: true }),
         supabase
           .from("appointments")
           .select("*", { count: "exact", head: true })
@@ -110,11 +106,11 @@ export default function AdminHomeScreen() {
       colors: ["#F59E0B", "#D97706"],
     },
     {
-  title: "Quản lý dịch vụ",
-  icon: "file-tray-full-outline",
-  screen: "ManageServices",
-  colors: ["#06B6D4", "#0E7490"],
-},
+      title: "Quản lý dịch vụ",
+      icon: "file-tray-full-outline",
+      screen: "ManageServices",
+      colors: ["#06B6D4", "#0E7490"],
+    },
     {
       title: "Bác sĩ nổi bật",
       icon: "star-outline",
@@ -126,6 +122,18 @@ export default function AdminHomeScreen() {
       icon: "folder-open-outline",
       screen: "CreateService",
       colors: ["#06B6D4", "#0891B2"],
+    },
+    {
+      title: "Quản lý phòng khám",
+      icon: "business-outline",
+      screen: "ManageRoom",
+      colors: ["#8B5CF6", "#7C3AED"],
+    },
+    {
+      title: "Quản lý thuốc",
+      icon: "flask-outline",
+      screen: "Medicines",
+      colors: ["#EF4444", "#B91C1C"],
     },
   ];
 
@@ -143,7 +151,7 @@ export default function AdminHomeScreen() {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
       {/* HEADER */}
-      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
+      <LinearGradient colors={["#2563EB", "#1E40AF"]} style={styles.header}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.greeting}>Xin chào, Admin!</Text>
@@ -186,7 +194,10 @@ export default function AdminHomeScreen() {
           ].map((item, i) => (
             <Animated.View
               key={i}
-              style={[styles.statBox, { transform: [{ scale: scaleAnims[i] }] }]}
+              style={[
+                styles.statBox,
+                { transform: [{ scale: scaleAnims[i] }] },
+              ]}
             >
               <View style={styles.statInner}>
                 <Ionicons name={item.icon} size={26} color={item.color} />

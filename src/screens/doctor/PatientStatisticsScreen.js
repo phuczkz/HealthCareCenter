@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,235 +8,224 @@ import {
   ActivityIndicator,
   Dimensions,
   Platform,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { LineChart } from 'react-native-chart-kit';
-import { useNavigation } from '@react-navigation/native';
-import { supabase } from '../../api/supabase';
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { LineChart } from "react-native-chart-kit";
+import { useNavigation } from "@react-navigation/native";
+import { supabase } from "../../api/supabase";
 
-import {
-  COLORS,
-  GRADIENTS,
-  SPACING,
-  BORDER_RADIUS,
-  FONT_SIZE,
-  SHADOWS,
-} from '../../theme/theme';
+const { width } = Dimensions.get("window");
+const CHART_WIDTH = width - 40;
 
-const { width } = Dimensions.get('window');
-const CHART_WIDTH = width - SPACING.xl * 2;
-
-const TIME_RANGES = [
-  { key: 'today', label: 'Hôm nay', icon: 'today-outline', days: 0 },
-  { key: '7day', label: '7 ngày gần nhất', icon: 'calendar-outline', days: 6 },
-  { key: '30day', label: '30 ngày gần nhất', icon: 'calendar-outline', days: 29 },
-  { key: '90day', label: '3 tháng gần nhất', icon: 'trending-up-outline', days: 89 },
-  { key: '1year', label: '1 năm gần nhất', icon: 'trending-up-outline', days: 364 },
-  { key: 'all', label: 'Toàn bộ thời gian', icon: 'infinite-outline', days: 9999 },
+const RANGES = [
+  { key: "today", label: "Hôm nay" },
+  { key: "7day", label: "7 ngày" },
+  { key: "30day", label: "30 ngày" },
+  { key: "90day", label: "3 tháng" },
+  { key: "1year", label: "1 năm" },
+  { key: "all", label: "Toàn bộ" },
 ];
 
 export default function PatientStatisticsScreen() {
   const navigation = useNavigation();
-
   const [doctorId, setDoctorId] = useState(null);
-  const [selectedRange, setSelectedRange] = useState('30day');
+  const [range, setRange] = useState("30day");
   const [showPicker, setShowPicker] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [totalPatients, setTotalPatients] = useState(0);
+  const [total, setTotal] = useState(0);
   const [chartData, setChartData] = useState(null);
 
-  // Lấy ID bác sĩ
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setDoctorId(user.id);
     })();
   }, []);
 
-  // Tính startDate từ range
   const startDate = useMemo(() => {
-    const range = TIME_RANGES.find(r => r.key === selectedRange);
-    if (!range) return null;
-
-    const date = new Date();
-    if (range.days === 9999) {
-      date.setFullYear(2020); // đủ sớm
-    } else {
-      date.setDate(date.getDate() - range.days);
+    const r = RANGES.find((x) => x.key === range);
+    const d = new Date();
+    if (r.key === "all") d.setFullYear(2020);
+    else {
+      const days =
+        r.key === "today"
+          ? 0
+          : r.key === "7day"
+          ? 6
+          : r.key === "30day"
+          ? 29
+          : r.key === "90day"
+          ? 89
+          : 364;
+      d.setDate(d.getDate() - days);
     }
-    date.setHours(0, 0, 0, 0);
-    return date;
-  }, [selectedRange]);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [range]);
 
-  // Fetch dữ liệu
   useEffect(() => {
     if (!doctorId || !startDate) return;
 
-    const fetchStats = async () => {
+    const fetch = async () => {
       setLoading(true);
       try {
-        const endDate = new Date();
-        endDate.setHours(23, 59, 59, 999);
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
 
         const { data, error } = await supabase
-          .from('appointments')
-          .select('appointment_date')
-          .eq('doctor_id', doctorId)
-          .eq('status', 'completed')
-          .gte('appointment_date', startDate.toISOString())
-          .lte('appointment_date', endDate.toISOString())
-          .order('appointment_date', { ascending: true });
+          .from("appointments")
+          .select("appointment_date")
+          .eq("doctor_id", doctorId)
+          .eq("status", "completed")
+          .gte("appointment_date", startDate.toISOString())
+          .lte("appointment_date", end.toISOString());
 
         if (error) throw error;
 
-        const dailyCount = {};
-        data?.forEach(item => {
-          const key = new Date(item.appointment_date).toLocaleDateString('vi-VN');
-          dailyCount[key] = (dailyCount[key] || 0) + 1;
+        const map = {};
+        data?.forEach((a) => {
+          const day = new Date(a.appointment_date).toLocaleDateString("vi-VN");
+          map[day] = (map[day] || 0) + 1;
         });
 
         const labels = [];
         const values = [];
-        let current = new Date(startDate);
-
-        while (current <= endDate) {
-          const key = current.toLocaleDateString('vi-VN');
-          const isToday = current.toDateString() === new Date().toDateString();
-
-          labels.push(isToday ? 'Hôm nay' : `${current.getDate()}/${current.getMonth() + 1}`);
-          values.push(dailyCount[key] || 0);
-          current.setDate(current.getDate() + 1);
+        let cur = new Date(startDate);
+        while (cur <= end) {
+          const k = cur.toLocaleDateString("vi-VN");
+          labels.push(cur.getDate() + "/" + (cur.getMonth() + 1));
+          values.push(map[k] || 0);
+          cur.setDate(cur.getDate() + 1);
         }
 
-        const total = values.reduce((a, b) => a + b, 0);
+        const totalPatients = values.reduce((a, b) => a + b, 0);
 
-        // Hiển thị tối đa 10 nhãn
-        const maxLabels = 10;
-        const step = Math.max(1, Math.floor(values.length / maxLabels));
-        const displayLabels = [];
-        const displayValues = [];
-
+        const step = Math.max(1, Math.ceil(values.length / 8));
+        const finalLabels = [];
+        const finalValues = [];
         for (let i = 0; i < values.length; i += step) {
-          displayLabels.push(labels[i]);
-          displayValues.push(values[i]);
+          finalLabels.push(labels[i]);
+          finalValues.push(values[i]);
         }
-        if (values.length > 1 && (values.length - 1) % step !== 0) {
-          displayLabels.push(labels[labels.length - 1]);
-          displayValues.push(values[values.length - 1]);
+        if (values.length > 1) {
+          finalLabels.push(labels[labels.length - 1]);
+          finalValues.push(values[values.length - 1]);
         }
 
-        setTotalPatients(total);
+        setTotal(totalPatients);
         setChartData({
-          labels: displayLabels.length > 1 ? displayLabels : ['Hôm nay'],
-          datasets: [{ data: displayValues.length > 0 ? displayValues : [0] }],
+          labels: finalLabels.length ? finalLabels : ["Hôm nay"],
+          datasets: [{ data: finalValues.length ? finalValues : [0] }],
         });
-      } catch (err) {
-        console.error('Lỗi thống kê:', err);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStats();
+    fetch();
   }, [doctorId, startDate]);
 
-  const currentRange = TIME_RANGES.find(r => r.key === selectedRange) || TIME_RANGES[2];
-
-  if (!doctorId) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
+  const currentRange = RANGES.find((r) => r.key === range) || RANGES[2];
 
   return (
     <View style={styles.container}>
-      {/* HEADER CÓ NÚT BACK + CHỮ NHỎ LẠI */}
-      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={26} color={COLORS.textOnPrimary} />
+      {/* HEADER NHỎ */}
+      <LinearGradient colors={["#1E40AF", "#1D4ED8"]} style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.back}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>Thống kê bệnh nhân</Text>
-
-        <TouchableOpacity style={styles.rangeBtn} onPress={() => setShowPicker(true)}>
-          <Ionicons name={currentRange.icon} size={20} color={COLORS.textOnPrimary} />
+        <Text style={styles.title}>Thống kê</Text>
+        <TouchableOpacity
+          style={styles.rangeBtn}
+          onPress={() => setShowPicker(true)}
+        >
           <Text style={styles.rangeText}>{currentRange.label}</Text>
-          <Ionicons name="chevron-down" size={18} color={COLORS.textOnPrimary} />
+          <Ionicons name="chevron-down" size={16} color="#60A5FA" />
         </TouchableOpacity>
       </LinearGradient>
 
-      {/* TỔNG QUAN */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>Tổng bệnh nhân đã khám</Text>
-        <Text style={styles.summaryValue}>{totalPatients.toLocaleString('vi-VN')}</Text>
-        <Text style={styles.summarySub}>{currentRange.label}</Text>
+      {/* DÀN ĐỀU XUỐNG DƯỚI – CỰC THOÁNG */}
+      <View style={styles.content}>
+        {/* CARD TỔNG QUAN */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryNumber}>{total.toLocaleString()}</Text>
+          <Text style={styles.summaryLabel}>bệnh nhân đã khám</Text>
+          <Text style={styles.summaryPeriod}>{currentRange.label}</Text>
+        </View>
+
+        {/* BIỂU ĐỒ */}
+        <View style={styles.chartCard}>
+          {loading ? (
+            <ActivityIndicator
+              size="small"
+              color="#3B82F6"
+              style={{ marginTop: 30 }}
+            />
+          ) : total === 0 ? (
+            <Text style={styles.empty}>Chưa có dữ liệu</Text>
+          ) : (
+            <LineChart
+              data={chartData}
+              width={CHART_WIDTH}
+              height={210}
+              yAxisSuffix=""
+              chartConfig={{
+                backgroundColor: "#fff",
+                backgroundGradientFrom: "#fff",
+                backgroundGradientTo: "#fff",
+                decimalPlaces: 0,
+                color: () => "#3B82F6",
+                labelColor: () => "#64748b",
+                propsForDots: { r: "4", strokeWidth: "2", stroke: "#3B82F6" },
+              }}
+              bezier
+              fromZero
+              style={{ borderRadius: 16 }}
+            />
+          )}
+        </View>
+
+        {/* KHOẢNG CÁCH ĐỀU ĐỂ DÀN XUỐNG DƯỚI */}
+        <View style={{ flex: 1 }} />
       </View>
 
-      {/* BIỂU ĐỒ */}
-      {loading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
-        </View>
-      ) : totalPatients === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="heart-outline" size={70} color={COLORS.textLight} />
-          <Text style={styles.emptyTitle}>Chưa có bệnh nhân</Text>
-          <Text style={styles.emptyDesc}>Biểu đồ sẽ hiện khi bạn khám bệnh</Text>
-        </View>
-      ) : (
-        <View style={styles.chartCard}>
-          <LineChart
-            data={chartData}
-            width={CHART_WIDTH}
-            height={280}
-            yAxisSuffix=" người"
-            chartConfig={{
-              backgroundColor: COLORS.surface,
-              backgroundGradientFrom: COLORS.surface,
-              backgroundGradientTo: COLORS.surface,
-              decimalPlaces: 0,
-              color: () => COLORS.primary,
-              labelColor: () => COLORS.textSecondary,
-              propsForDots: { r: '5', strokeWidth: '3', stroke: COLORS.primary },
-            }}
-            bezier
-            fromZero
-            style={styles.chart}
-            segments={5}
-          />
-        </View>
-      )}
-
-      {/* MODAL CHỌN KHOẢNG */}
-      <Modal visible={showPicker} transparent animationType="slide">
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowPicker(false)}>
-          <View style={styles.modal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chọn khoảng thời gian</Text>
-            </View>
-            {TIME_RANGES.map(item => (
+      {/* MODAL NHỎ Ở GIỮA */}
+      <Modal visible={showPicker} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.overlay}
+          onPress={() => setShowPicker(false)}
+        >
+          <View style={styles.picker}>
+            {RANGES.map((item) => (
               <TouchableOpacity
                 key={item.key}
-                style={[styles.modalItem, selectedRange === item.key && styles.activeItem]}
+                style={[
+                  styles.pickerItem,
+                  range === item.key && styles.pickerActive,
+                ]}
                 onPress={() => {
-                  setSelectedRange(item.key);
+                  setRange(item.key);
                   setShowPicker(false);
                 }}
               >
-                <Ionicons
-                  name={item.icon}
-                  size={22}
-                  color={selectedRange === item.key ? COLORS.primary : COLORS.textSecondary}
-                />
-                <Text style={[styles.modalItemText, selectedRange === item.key && styles.activeText]}>
+                <Text
+                  style={[
+                    styles.pickerText,
+                    range === item.key && styles.pickerTextActive,
+                  ]}
+                >
                   {item.label}
                 </Text>
-                {selectedRange === item.key && (
-                  <Ionicons name="checkmark-circle" size={26} color={COLORS.primary} />
+                {range === item.key && (
+                  <Ionicons name="checkmark" size={20} color="#3B82F6" />
                 )}
               </TouchableOpacity>
             ))}
@@ -247,89 +236,97 @@ export default function PatientStatisticsScreen() {
   );
 }
 
+// STYLES DÀN ĐỀU – CỰC THOÁNG – CỰC ĐẸP
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xl,
-    borderBottomLeftRadius: BORDER_RADIUS.xxl,
-    borderBottomRightRadius: BORDER_RADIUS.xxl,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 60 : 45,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
-  backBtn: { padding: 4 },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: COLORS.textOnPrimary, flex: 1, marginLeft: 12 },
-
+  back: { padding: 6 },
+  title: { fontSize: 22, fontWeight: "800", color: "#FFF" },
   rangeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.lg,
-    gap: SPACING.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    gap: 6,
   },
-  rangeText: { fontSize: FONT_SIZE.sm, fontWeight: '600', color: COLORS.textOnPrimary },
+  rangeText: { color: "#60A5FA", fontSize: 14, fontWeight: "600" },
+
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    justifyContent: "flex-start", // bắt đầu từ trên
+    gap: 24, // khoảng cách đều nhau
+    paddingTop: 30,
+  },
 
   summaryCard: {
-    marginHorizontal: SPACING.xl,
-    marginTop: SPACING.xl,
-    padding: SPACING.xl,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    alignItems: 'center',
-    ...SHADOWS.card,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    paddingVertical: 28,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  summaryLabel: { fontSize: FONT_SIZE.sm, color: COLORS.textSecondary },
-  summaryValue: { fontSize: 46, fontWeight: '900', color: COLORS.primary, marginVertical: SPACING.sm },
-  summarySub: { fontSize: FONT_SIZE.sm, color: COLORS.textLight },
+  summaryNumber: { fontSize: 52, fontWeight: "900", color: "#1D4ED8" },
+  summaryLabel: { fontSize: 16, color: "#64748B", marginTop: 6 },
+  summaryPeriod: {
+    fontSize: 15,
+    color: "#3B82F6",
+    marginTop: 4,
+    fontWeight: "600",
+  },
 
   chartCard: {
-    marginTop: SPACING.xl,
-    marginHorizontal: SPACING.xl,
-    padding: SPACING.xl,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    ...SHADOWS.card,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    paddingVertical: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  chart: { borderRadius: BORDER_RADIUS.xl },
+  empty: { fontSize: 16, color: "#94A3B8", marginTop: 30 },
 
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: SPACING.lg, fontSize: FONT_SIZE.base, color: COLORS.textSecondary },
-
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.xxl },
-  emptyTitle: { marginTop: SPACING.xl, fontSize: FONT_SIZE.xl, fontWeight: '700', color: COLORS.textPrimary },
-  emptyDesc: { marginTop: SPACING.md, fontSize: FONT_SIZE.base, color: COLORS.textSecondary, textAlign: 'center' },
-
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: BORDER_RADIUS.xxl,
-    borderTopRightRadius: BORDER_RADIUS.xxl,
-    paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.xl,
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  modalHeader: {
-    padding: SPACING.xl,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    alignItems: 'center',
+  picker: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 8,
+    width: width * 0.7,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
   },
-  modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.textPrimary },
-
-  modalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.xl,
-    paddingHorizontal: SPACING.xxl,
-    gap: SPACING.lg,
+  pickerItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  activeItem: { backgroundColor: COLORS.primary + '12' },
-  modalItemText: { flex: 1, fontSize: FONT_SIZE.lg, color: COLORS.textPrimary },
-  activeText: { fontWeight: '700', color: COLORS.primary },
+  pickerActive: { backgroundColor: "#EFF6FF", borderRadius: 12 },
+  pickerText: { fontSize: 16, color: "#1E293B" },
+  pickerTextActive: { color: "#3B82F6", fontWeight: "700" },
 });

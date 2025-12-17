@@ -1,5 +1,4 @@
-// src/screens/admin/CreateDoctorScheduleScreen.js
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -18,7 +17,15 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import theme from "../../theme/theme";
 
 const { COLORS, GRADIENTS, SPACING, BORDER_RADIUS, SHADOWS } = theme;
-const WEEKDAYS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
+const WEEKDAYS = [
+  "Thứ 2",
+  "Thứ 3",
+  "Thứ 4",
+  "Thứ 5",
+  "Thứ 6",
+  "Thứ 7",
+  "Chủ nhật",
+];
 
 export default function CreateDoctorScheduleScreen() {
   const navigation = useNavigation();
@@ -28,6 +35,7 @@ export default function CreateDoctorScheduleScreen() {
   const [schedules, setSchedules] = useState({});
   const [loading, setLoading] = useState(false);
 
+  // Format time HH:MM
   const formatTime = (text = "") => {
     const digits = text.replace(/[^0-9]/g, "");
     if (!digits) return "";
@@ -45,7 +53,8 @@ export default function CreateDoctorScheduleScreen() {
   const hasOverlap = (slots) => {
     const sorted = [...slots].sort((a, b) => a.start.localeCompare(b.start));
     for (let i = 0; i < sorted.length - 1; i++) {
-      if (toMinutes(sorted[i].end) > toMinutes(sorted[i + 1].start)) return true;
+      if (toMinutes(sorted[i].end) > toMinutes(sorted[i + 1].start))
+        return true;
     }
     return false;
   };
@@ -67,14 +76,14 @@ export default function CreateDoctorScheduleScreen() {
       }
     }
 
-    setSchedules(prev => ({
+    setSchedules((prev) => ({
       ...prev,
-      [day]: [...(prev[day] || []), { start, end }]
+      [day]: [...(prev[day] || []), { start, end }],
     }));
   };
 
   const removeSlot = (day, idx) => {
-    setSchedules(prev => {
+    setSchedules((prev) => {
       const updated = prev[day].filter((_, i) => i !== idx);
       if (updated.length === 0) {
         const { [day]: _, ...rest } = prev;
@@ -86,7 +95,7 @@ export default function CreateDoctorScheduleScreen() {
 
   const updateTime = (day, idx, field, value) => {
     const formatted = formatTime(value);
-    setSchedules(prev => {
+    setSchedules((prev) => {
       const updated = [...(prev[day] || [])];
       updated[idx] = { ...updated[idx], [field]: formatted };
       return { ...prev, [day]: updated };
@@ -96,7 +105,10 @@ export default function CreateDoctorScheduleScreen() {
   const handleCreate = async () => {
     const allSlots = Object.values(schedules).flat();
     if (allSlots.length === 0) {
-      return Alert.alert("Thiếu lịch", "Vui lòng thêm ít nhất 1 khung giờ làm việc");
+      return Alert.alert(
+        "Thiếu lịch",
+        "Vui lòng thêm ít nhất 1 khung giờ làm việc"
+      );
     }
 
     for (const [day, slots] of Object.entries(schedules)) {
@@ -105,80 +117,93 @@ export default function CreateDoctorScheduleScreen() {
       }
       for (const slot of slots) {
         if (!isValidTime(slot.start) || !isValidTime(slot.end)) {
-          return Alert.alert("Sai định dạng", `${day}: Giờ phải có dạng HH:MM (ví dụ: 08:00)`);
+          return Alert.alert(
+            "Sai định dạng",
+            `${day}: Giờ phải có dạng HH:MM (ví dụ: 08:00)`
+          );
         }
         if (toMinutes(slot.start) >= toMinutes(slot.end)) {
-          return Alert.alert("Lỗi giờ", `${day}: Giờ kết thúc phải sau giờ bắt đầu`);
+          return Alert.alert(
+            "Lỗi giờ",
+            `${day}: Giờ kết thúc phải sau giờ bắt đầu`
+          );
         }
       }
     }
 
     setLoading(true);
-    Alert.alert("Đang tạo bác sĩ", "Vui lòng chờ một chút...", [], { cancelable: false });
+    Alert.alert("Đang tạo bác sĩ", "Vui lòng chờ một chút...", [], {
+      cancelable: false,
+    });
 
     try {
-      // 1. Tạo user bằng Admin API (để tránh xác minh email)
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: doctorInfo.email,
-        password: doctorInfo.password,
-        email_confirm: true, // tự động confirm email
-        user_metadata: { full_name: doctorInfo.fullName }
-      });
+      // 1. Tạo user bằng Admin API
+      const { data: authData, error: authError } =
+        await supabase.auth.admin.createUser({
+          email: doctorInfo.email,
+          password: doctorInfo.password,
+          email_confirm: true,
+          user_metadata: { full_name: doctorInfo.fullName },
+        });
 
       if (authError) throw authError;
       if (!authData?.user) throw new Error("Không tạo được user");
 
       const userId = authData.user.id;
 
-const { error: profileError } = await supabase
-  .from("user_profiles")
-  .insert({  // dùng insert thay vì upsert để tránh lỗi trùng
-    id: userId,
-    full_name: doctorInfo.fullName,
-    email: doctorInfo.email,
-    role_id: 2,                    // ĐÚNG YÊU CẦU CỦA BẠN
-    created_at: new Date().toISOString(),
-  });
+      // 2. Tạo profile
+      const { error: profileError } = await supabase
+        .from("user_profiles")
+        .insert({
+          id: userId,
+          full_name: doctorInfo.fullName,
+          email: doctorInfo.email,
+          role_id: 2, // bác sĩ
+        });
 
       if (profileError) throw profileError;
 
-      // 3. Insert vào bảng doctors
-      const { error: doctorError } = await supabase
-        .from("doctors")
-        .insert({
-          id: userId,
-          name: doctorInfo.fullName,
-          service_id: doctorInfo.service_id || null,
-          specialization: doctorInfo.specialization, // chuỗi "Tim mạch, Răng hàm mặt"
-          experience_years: doctorInfo.experience_years,
-          room_number: doctorInfo.room_number,
-          max_patients_per_slot: doctorInfo.max_patients_per_slot,
-          bio: doctorInfo.bio,
-          department_name: doctorInfo.department_name,
-        });
+      // 3. Tạo bác sĩ
+      const { error: doctorError } = await supabase.from("doctors").insert({
+        id: userId,
+        name: doctorInfo.fullName,
+        service_id: doctorInfo.service_id || null,
+        specialization: doctorInfo.specialization,
+        experience_years: doctorInfo.experience_years,
+        room_number: doctorInfo.room_number,
+        max_patients_per_slot: doctorInfo.max_patients_per_slot || 10,
+        bio: doctorInfo.bio,
+        department_name: doctorInfo.department_name,
+      });
 
-      if (doctorError) {
-        if (doctorError.code === "23505") throw new Error("Bác sĩ đã tồn tại");
-        throw doctorError;
-      }
+      if (doctorError) throw doctorError;
 
-      // 4. Gán phòng khám
+      // 4. GÁN PHÒNG KHÁM – ĐÁNH DẤU ĐÃ CÓ BÁC SĨ
       const { error: roomError } = await supabase
         .from("clinic_rooms")
-        .update({ doctor_id: userId })
+        .update({
+          doctor_id: userId,
+          is_active: false, // ← THÊM DÒNG NÀY – SIÊU QUAN TRỌNG!
+          updated_at: new Date().toISOString(),
+        })
         .eq("room_number", doctorInfo.room_number);
 
-      if (roomError) console.warn("Cảnh báo gán phòng:", roomError);
+      if (roomError) {
+        console.warn("Cảnh báo gán phòng:", roomError);
+      } else {
+        console.log("Phòng đã được gán thành công:", doctorInfo.room_number);
+      }
 
-      // 5. Tạo lịch làm việc
-      const scheduleInserts = Object.entries(schedules).flatMap(([day, slots]) =>
-        slots.map(slot => ({
-          doctor_id: userId,
-          day_of_week: day,
-          start_time: `${slot.start}:00`,
-          end_time: `${slot.end}:00`,
-          max_patients_per_slot: doctorInfo.max_patients_per_slot || 10,
-        }))
+      // 5. TẠO LỊCH LÀM VIỆC
+      const scheduleInserts = Object.entries(schedules).flatMap(
+        ([day, slots]) =>
+          slots.map((slot) => ({
+            doctor_id: userId,
+            day_of_week: day,
+            start_time: `${slot.start}:00`,
+            end_time: `${slot.end}:00`,
+            max_patients_per_slot: doctorInfo.max_patients_per_slot || 10,
+          }))
       );
 
       if (scheduleInserts.length > 0) {
@@ -189,23 +214,27 @@ const { error: profileError } = await supabase
         if (scheduleError) throw scheduleError;
       }
 
-      // THÀNH CÔNG
       Alert.alert(
         "HOÀN TẤT!",
-        `Đã tạo thành công bác sĩ:\n${doctorInfo.fullName}\nPhòng: ${doctorInfo.room_number}`,
-        [{
-          text: "OK",
-          onPress: () => navigation.reset({
-            index: 0,
-            routes: [{ name: "ManageDoctors" }],
-          })
-        }]
+        `Đã tạo thành công bác sĩ:\n${doctorInfo.fullName}\nPhòng: ${doctorInfo.room_number}\nKhoa: ${doctorInfo.department_name}\nChuyên môn: ${doctorInfo.specialization}`,
+        [
+          {
+            text: "OK",
+            onPress: () =>
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "ManageDoctors" }], // hoặc màn admin của bạn
+              }),
+          },
+        ]
       );
-
     } catch (err) {
       console.error("Lỗi tạo bác sĩ:", err);
       let message = "Không thể tạo bác sĩ. Vui lòng thử lại!";
-      if (err.message?.includes("duplicate") || err.message?.includes("already")) {
+      if (
+        err.message?.includes("duplicate") ||
+        err.message?.includes("already")
+      ) {
         message = "Email hoặc phòng khám đã được sử dụng!";
       }
       Alert.alert("Lỗi", message);
@@ -218,8 +247,11 @@ const { error: profileError } = await supabase
     <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
       <StatusBar barStyle="light-content" />
 
-      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+      <LinearGradient colors={["#2563EB", "#1E40AF"]} style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
           <Ionicons name="arrow-back" size={26} color="#FFF" />
         </TouchableOpacity>
         <View style={{ alignItems: "center" }}>
@@ -234,7 +266,12 @@ const { error: profileError } = await supabase
           <Text style={styles.doctorName}>{doctorInfo.fullName}</Text>
           <Text style={styles.doctorEmail}>{doctorInfo.email}</Text>
           <Text style={styles.doctorRoom}>Phòng: {doctorInfo.room_number}</Text>
-          <Text style={styles.doctorDept}>Khoa: {doctorInfo.department_name}</Text>
+          <Text style={styles.doctorDept}>
+            Khoa: {doctorInfo.department_name}
+          </Text>
+          <Text style={styles.doctorSpec}>
+            Chuyên môn: {doctorInfo.specialization}
+          </Text>
         </View>
 
         <Text style={styles.sectionTitle}>Khung giờ làm việc</Text>
@@ -243,7 +280,10 @@ const { error: profileError } = await supabase
           <View key={day} style={styles.dayBlock}>
             <View style={styles.dayHeader}>
               <Text style={styles.dayText}>{day}</Text>
-              <TouchableOpacity onPress={() => addSlot(day)} style={styles.addBtn}>
+              <TouchableOpacity
+                onPress={() => addSlot(day)}
+                style={styles.addBtn}
+              >
                 <Ionicons name="add-circle" size={22} color={COLORS.primary} />
                 <Text style={styles.addBtnText}>Thêm ca</Text>
               </TouchableOpacity>
@@ -260,7 +300,12 @@ const { error: profileError } = await supabase
                     maxLength={5}
                     keyboardType="numeric"
                   />
-                  <Ionicons name="arrow-forward" size={20} color="#64748B" style={{ marginHorizontal: 12 }} />
+                  <Ionicons
+                    name="arrow-forward"
+                    size={20}
+                    color="#64748B"
+                    style={{ marginHorizontal: 12 }}
+                  />
                   <TextInput
                     style={styles.timeInput}
                     value={slot.end}
@@ -269,8 +314,15 @@ const { error: profileError } = await supabase
                     maxLength={5}
                     keyboardType="numeric"
                   />
-                  <TouchableOpacity onPress={() => removeSlot(day, i)} style={styles.deleteBtn}>
-                    <Ionicons name="trash-bin" size={22} color={COLORS.danger} />
+                  <TouchableOpacity
+                    onPress={() => removeSlot(day, i)}
+                    style={styles.deleteBtn}
+                  >
+                    <Ionicons
+                      name="trash-bin"
+                      size={22}
+                      color={COLORS.danger}
+                    />
                   </TouchableOpacity>
                 </View>
               ))
@@ -285,7 +337,10 @@ const { error: profileError } = await supabase
           onPress={handleCreate}
           disabled={loading}
         >
-          <LinearGradient colors={GRADIENTS.primaryButton} style={styles.createBtnGradient}>
+          <LinearGradient
+            colors={GRADIENTS.primaryButton}
+            style={styles.createBtnGradient}
+          >
             {loading ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
@@ -331,14 +386,40 @@ const styles = {
   },
   doctorName: { fontSize: 20, fontWeight: "bold", color: COLORS.textPrimary },
   doctorEmail: { fontSize: 15, color: COLORS.textSecondary, marginTop: 4 },
-  doctorRoom: { fontSize: 15, color: COLORS.success, marginTop: 4, fontWeight: "600" },
+  doctorRoom: {
+    fontSize: 15,
+    color: COLORS.success,
+    marginTop: 4,
+    fontWeight: "600",
+  },
   doctorDept: { fontSize: 15, color: COLORS.primary, marginTop: 4 },
-  sectionTitle: { fontSize: 18, fontWeight: "bold", color: COLORS.textPrimary, marginBottom: SPACING.lg },
+  doctorSpec: {
+    fontSize: 15,
+    color: COLORS.primary,
+    marginTop: 4,
+    fontWeight: "600",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.lg,
+  },
   dayBlock: { marginBottom: SPACING.xl },
-  dayHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: SPACING.md },
+  dayHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: SPACING.md,
+  },
   dayText: { fontSize: 17, fontWeight: "600", color: COLORS.textPrimary },
   addBtn: { flexDirection: "row", alignItems: "center" },
-  addBtnText: { marginLeft: 6, fontSize: 15, color: COLORS.primary, fontWeight: "600" },
+  addBtnText: {
+    marginLeft: 6,
+    fontSize: 15,
+    color: COLORS.primary,
+    fontWeight: "600",
+  },
   slotRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -359,8 +440,29 @@ const styles = {
     color: COLORS.textPrimary,
   },
   deleteBtn: { marginLeft: "auto", padding: 8 },
-  emptyDay: { fontSize: 15, color: COLORS.textSecondary, fontStyle: "italic", textAlign: "center", marginTop: 12 },
-  createBtn: { marginTop: SPACING.xxl, borderRadius: BORDER_RADIUS.xl, overflow: "hidden", ...SHADOWS.large },
-  createBtnGradient: { flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 18 },
-  createBtnText: { fontSize: 18, fontWeight: "700", color: "#FFF", marginLeft: 12 },
+  emptyDay: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 12,
+  },
+  createBtn: {
+    marginTop: SPACING.xxl,
+    borderRadius: BORDER_RADIUS.xl,
+    overflow: "hidden",
+    ...SHADOWS.large,
+  },
+  createBtnGradient: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 18,
+  },
+  createBtnText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFF",
+    marginLeft: 12,
+  },
 };

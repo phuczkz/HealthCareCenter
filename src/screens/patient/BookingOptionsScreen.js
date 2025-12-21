@@ -12,14 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import theme from "../../theme/theme";
 
-const {
-  COLORS,
-  GRADIENTS,
-  SPACING,
-  BORDER_RADIUS,
-  FONT_WEIGHT,
-  SHADOWS,
-} = theme;
+const { COLORS, GRADIENTS, SPACING, BORDER_RADIUS } = theme;
 
 export default function BookingOptionsScreen() {
   const navigation = useNavigation();
@@ -45,13 +38,18 @@ export default function BookingOptionsScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient colors={GRADIENTS.header} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack( )} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
           <Ionicons name="arrow-back" size={26} color="#FFF" />
         </TouchableOpacity>
 
         <View style={styles.titleWrapper}>
           <Text style={styles.headerTitle}>Đặt lịch khám</Text>
-          <Text style={styles.headerSubtitle}>Chọn cách đặt lịch phù hợp với bạn</Text>
+          <Text style={styles.headerSubtitle}>
+            Chọn cách đặt lịch phù hợp với bạn
+          </Text>
         </View>
 
         <View style={{ width: 48 }} />
@@ -59,47 +57,46 @@ export default function BookingOptionsScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.content}
       >
         {options.map((item, index) => (
           <TouchableOpacity
             key={index}
             style={styles.card}
-            activeOpacity={0.88}
+            activeOpacity={0.9}
             onPress={() => navigation.navigate(item.screen)}
           >
             <LinearGradient
               colors={item.gradient}
-              style={styles.cardGradient}
+              style={styles.gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <View style={styles.iconWrapper}>
-                <Ionicons name={item.icon} size={26} color="#FFF" />
+              <View style={styles.icon}>
+                <Ionicons name={item.icon} size={28} color="#FFF" />
               </View>
 
-              <View style={styles.textWrapper}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
+              <View style={styles.text}>
+                <Text style={styles.title}>{item.title}</Text>
+                <Text style={styles.subtitle}>{item.subtitle}</Text>
               </View>
 
-              <View style={styles.rightSide}>
+              <View style={styles.right}>
                 {item.badge && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{item.badge}</Text>
                   </View>
                 )}
-                <Ionicons name="chevron-forward" size={24} color="#FFF" />
+                <Ionicons name="chevron-forward" size={26} color="#FFF" />
               </View>
             </LinearGradient>
           </TouchableOpacity>
         ))}
 
-        {/* Note bảo mật */}
-        <View style={styles.securityNote}>
-          <Ionicons name="shield-checkmark" size={22} color={COLORS.primary} />
+        <View style={styles.note}>
+          <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
           <Text style={styles.noteText}>
-            Thông tin của bạn được bảo mật 100%
+            Thông tin của bạn được bảo mật 100% theo tiêu chuẩn HIPAA
           </Text>
         </View>
       </ScrollView>
@@ -108,120 +105,125 @@ export default function BookingOptionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
 
-  // === HEADER ===
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingTop: Platform.OS === "ios" ? 60 : 45,
     paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.lg,
+    paddingBottom: SPACING.xl,
     borderBottomLeftRadius: BORDER_RADIUS.xxxl,
+    borderBottomRightRadius: BORDER_RADIUS.xxxl,
   },
+
   backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "rgba(255,255,255,0.25)",
     justifyContent: "center",
     alignItems: "center",
   },
+
   titleWrapper: {
     flex: 1,
     alignItems: "center",
-    marginLeft: -44, // cân bằng với backBtn
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: FONT_WEIGHT.bold,
-    color: "#FFF",
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
-    marginTop: 4,
+    paddingHorizontal: 20,
   },
 
-  // === NỘI DUNG ===
-  scrollContent: {
-    paddingHorizontal: SPACING.xl,
+  headerTitle: {
+    fontSize: 23,
+    fontWeight: "800",
+    color: "#FFF",
+  },
+
+  headerSubtitle: {
+    fontSize: 14.5,
+    color: "rgba(255,255,255,0.9)",
+    marginTop: 6,
+  },
+
+  content: {
+    padding: SPACING.xl,
     paddingTop: SPACING.xl,
-    paddingBottom: SPACING.xxxl,
+    paddingBottom: 100,
   },
 
   card: {
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
     borderRadius: BORDER_RADIUS.xl,
     overflow: "hidden",
-    ...SHADOWS.card,
   },
-  cardGradient: {
+
+  gradient: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: SPACING.lg,
-    paddingHorizontal: SPACING.xl,
-    minHeight: 88,
+    padding: SPACING.xl,
+    minHeight: 100,
   },
-  iconWrapper: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+
+  icon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "rgba(255,255,255,0.25)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: SPACING.lg,
   },
-  textWrapper: {
+
+  text: {
     flex: 1,
   },
-  cardTitle: {
-    fontSize: 17.5,
-    fontWeight: FONT_WEIGHT.semibold,
+
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
     color: "#FFF",
   },
-  cardSubtitle: {
-    fontSize: 13.5,
+
+  subtitle: {
+    fontSize: 14,
     color: "rgba(255,255,255,0.9)",
-    marginTop: 3,
+    marginTop: 4,
   },
-  rightSide: {
+
+  right: {
     alignItems: "flex-end",
-    justifyContent: "center",
   },
+
   badge: {
     backgroundColor: "#FFF",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     marginBottom: 8,
   },
+
   badgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "900",
     color: "#7C3AED",
   },
 
-  // === NOTE ===
-  securityNote: {
+  note: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EFF6FF",
-    padding: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: "#F0F9FF",
+    padding: SPACING.xl,
+    borderRadius: BORDER_RADIUS.xl,
     marginTop: SPACING.xl,
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderWidth: 1.5,
+    borderColor: "#BAE6FD",
   },
+
   noteText: {
-    marginLeft: SPACING.md,
-    fontSize: 14.5,
-    fontWeight: FONT_WEIGHT.medium,
+    marginLeft: SPACING.lg,
+    fontSize: 15,
     color: COLORS.primary,
     flex: 1,
+    lineHeight: 22,
   },
 });

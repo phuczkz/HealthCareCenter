@@ -1,4 +1,3 @@
-// src/screens/admin/ManageDoctorsScreen.js
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
@@ -34,7 +33,8 @@ export default function ManageDoctorsScreen() {
     try {
       const { data, error } = await supabase
         .from("doctors")
-        .select(`
+        .select(
+          `
           id,
           name,
           room_number,
@@ -42,24 +42,24 @@ export default function ManageDoctorsScreen() {
           bio,
           specialization,
           department_name
-        `)
+        `
+        )
         .order("name", { ascending: true });
 
       if (error) throw error;
 
-      const formatted = (data || []).map(doc => ({
+      const formatted = (data || []).map((doc) => ({
         id: doc.id,
         full_name: doc.name?.trim() || "Bác sĩ",
         room_number: doc.room_number || null,
         experience_years: doc.experience_years,
         bio: doc.bio || null,
         department_name: doc.department_name || "Chưa phân khoa",
-        // Tách chuỗi specialization thành mảng để hiển thị đẹp
         specializations: doc.specialization
           ? doc.specialization
               .split(",")
-              .map(s => s.trim())
-              .filter(s => s.length > 0)
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0)
           : [],
       }));
 
@@ -74,24 +74,27 @@ export default function ManageDoctorsScreen() {
     }
   };
 
-  // Tự động reload khi quay lại màn hình
   useFocusEffect(
     useCallback(() => {
       fetchDoctors();
     }, [])
   );
 
-  // Tìm kiếm siêu nhanh
   const filteredDoctors = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return doctors;
 
-    return doctors.filter(doc => {
+    return doctors.filter((doc) => {
       const name = doc.full_name.toLowerCase();
       const specs = doc.specializations.join(" ").toLowerCase();
       const room = doc.room_number ? String(doc.room_number) : "";
       const dept = doc.department_name.toLowerCase();
-      return name.includes(q) || specs.includes(q) || room.includes(q) || dept.includes(q);
+      return (
+        name.includes(q) ||
+        specs.includes(q) ||
+        room.includes(q) ||
+        dept.includes(q)
+      );
     });
   }, [doctors, searchQuery]);
 
@@ -106,27 +109,46 @@ export default function ManageDoctorsScreen() {
       item.specializations.length > 0
         ? item.specializations.join(" • ")
         : "Chưa có chuyên môn";
-    const roomText = item.room_number ? `Phòng ${item.room_number}` : "Chưa phân phòng";
+
+    const roomText = item.room_number
+      ? `Phòng ${item.room_number}`
+      : "Chưa phân phòng";
 
     return (
       <TouchableOpacity
-        activeOpacity={0.8}
+        activeOpacity={0.85}
         style={styles.cardWrapper}
-        onPress={() => navigation.navigate("DoctorDetail", { doctorId: item.id })}
+        onPress={() =>
+          navigation.navigate("DoctorDetail", { doctorId: item.id })
+        }
       >
         <View style={styles.card}>
-          <View style={styles.avatarWrapper}>
-            <LinearGradient colors={GRADIENTS.primaryButton} style={styles.avatar}>
-              <Text style={styles.avatarLetter}>{avatarLetter}</Text>
-            </LinearGradient>
-          </View>
+          <LinearGradient
+            colors={GRADIENTS.primaryButton}
+            style={styles.avatar}
+          >
+            <Text style={styles.avatarLetter}>{avatarLetter}</Text>
+          </LinearGradient>
 
-          <View style={styles.content}>
+          <View style={styles.cardInfo}>
             <Text style={styles.name}>{item.full_name}</Text>
-            <Text style={styles.specialist} numberOfLines={2}>{specsText}</Text>
-            <Text style={styles.roomInfo}>{roomText}</Text>
-            {item.department_name && item.department_name !== "Chưa phân khoa" && (
-              <Text style={styles.department}>Khoa: {item.department_name}</Text>
+
+            <Text style={styles.specialist} numberOfLines={1}>
+              {specsText}
+            </Text>
+
+            <View style={styles.row}>
+              <Ionicons name="business" size={14} color={COLORS.primary} />
+              <Text style={styles.roomInfo}>{roomText}</Text>
+            </View>
+
+            {item.department_name !== "Chưa phân khoa" && (
+              <View style={styles.row}>
+                <Ionicons name="layers" size={14} color={COLORS.success} />
+                <Text style={styles.department}>
+                  Khoa: {item.department_name}
+                </Text>
+              </View>
             )}
           </View>
 
@@ -157,14 +179,15 @@ export default function ManageDoctorsScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      <LinearGradient colors={GRADIENTS.header} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={26} color="#FFF" />
+      <LinearGradient colors={["#2563EB", "#1E40AF"]} style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("AdminHome")}
+          style={styles.backBtn}
+        >
+          <Ionicons name="arrow-back" size={20} color="#FFF" />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>Quản lý bác sĩ</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("AdminHome")} style={styles.homeBtn}>
-          <Ionicons name="home" size={24} color="#FFF" />
-        </TouchableOpacity>
       </LinearGradient>
 
       <View style={styles.searchBar}>
@@ -187,9 +210,13 @@ export default function ManageDoctorsScreen() {
 
       <FlatList
         data={filteredDoctors}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         renderItem={renderDoctorItem}
-        contentContainerStyle={{ padding: SPACING.xl, paddingTop: SPACING.md, paddingBottom: 100 }}
+        contentContainerStyle={{
+          padding: SPACING.xl,
+          paddingTop: SPACING.md,
+          paddingBottom: 100,
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -213,7 +240,10 @@ export default function ManageDoctorsScreen() {
         onPress={() => navigation.navigate("CreateDoctorAccount")}
         activeOpacity={0.9}
       >
-        <LinearGradient colors={GRADIENTS.primaryButton} style={styles.fabGradient}>
+        <LinearGradient
+          colors={GRADIENTS.primaryButton}
+          style={styles.fabGradient}
+        >
           <Ionicons name="add" size={32} color="#FFF" />
         </LinearGradient>
       </TouchableOpacity>
@@ -223,6 +253,7 @@ export default function ManageDoctorsScreen() {
 
 const styles = {
   container: { flex: 1, backgroundColor: "#F8FAFC" },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -232,9 +263,28 @@ const styles = {
     paddingBottom: SPACING.lg,
     borderBottomLeftRadius: BORDER_RADIUS.xxxl,
   },
-  backBtn: { padding: 10, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 25 },
-  homeBtn: { padding: 10, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 25 },
-  headerTitle: { fontSize: 23, fontWeight: "bold", color: "#FFF" },
+
+  backBtn: {
+    padding: 10,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 25,
+  },
+  homeBtn: {
+    padding: 10,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 25,
+  },
+
+  headerTitle: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    textAlign: "center",
+    fontSize: 23,
+    fontWeight: "bold",
+    color: "#FFF",
+  },
+
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -246,32 +296,83 @@ const styles = {
     height: 52,
     ...SHADOWS.card,
   },
-  searchInput: { flex: 1, marginLeft: 12, fontSize: 16, color: COLORS.textPrimary },
-  cardWrapper: { marginBottom: SPACING.md },
+
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+
+  cardWrapper: { marginBottom: SPACING.lg },
+
   card: {
-    backgroundColor: "#FFFFFF",
     flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     padding: SPACING.lg,
     borderRadius: BORDER_RADIUS.xl,
+    alignItems: "center",
     ...SHADOWS.card,
+    gap: 14,
   },
-  avatarWrapper: { marginRight: SPACING.lg },
-  avatar: { width: 64, height: 64, borderRadius: 32, justifyContent: "center", alignItems: "center" },
-  avatarLetter: { fontSize: 26, fontWeight: "900", color: "#FFF" },
-  content: { flex: 1 },
-  name: { fontSize: 18, fontWeight: "700", color: COLORS.textPrimary },
-  specialist: { fontSize: 14, color: "#555", marginTop: 6 },
-  roomInfo: { fontSize: 13.5, color: COLORS.success, marginTop: 6, fontWeight: "500" },
-  department: { fontSize: 13, color: COLORS.primary, marginTop: 4, fontStyle: "italic" },
-  editBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.primary + "15",
+
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
   },
+
+  avatarLetter: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#FFF",
+  },
+
+  cardInfo: { flex: 1 },
+
+  name: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+
+  specialist: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+  },
+
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+
+  roomInfo: {
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
+
+  department: {
+    fontSize: 13,
+    color: COLORS.success,
+    fontStyle: "italic",
+  },
+
+  editBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.primary + "15",
+  },
+
   fab: {
     position: "absolute",
     right: 20,
@@ -282,10 +383,33 @@ const styles = {
     ...SHADOWS.large,
     elevation: 12,
   },
-  fabGradient: { flex: 1, borderRadius: 32, justifyContent: "center", alignItems: "center" },
+
+  fabGradient: {
+    flex: 1,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   empty: { alignItems: "center", marginTop: 100, paddingHorizontal: 40 },
-  emptyText: { fontSize: 20, fontWeight: "600", color: COLORS.textSecondary, marginTop: 20 },
-  emptySub: { fontSize: 15, color: "#94A3B8", marginTop: 8, textAlign: "center" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" },
+  emptyText: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+    marginTop: 20,
+  },
+  emptySub: {
+    fontSize: 15,
+    color: "#94A3B8",
+    marginTop: 8,
+    textAlign: "center",
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
   loadingText: { marginTop: 16, fontSize: 16, color: COLORS.textSecondary },
 };

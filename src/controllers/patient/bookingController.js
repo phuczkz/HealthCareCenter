@@ -1,53 +1,85 @@
-import { supabase } from '../../api/supabase';
-import { createBookingService } from './../../services/patient/bookingService';
+import { useState, useCallback } from "react";
+import {
+  getAvailableDates,
+  getSpecializationsByDate,
+  getAvailableSlots,
+  createAppointment,
+} from "../../services/patient/bookingService";
 
-/**
- * Xác nhận đặt lịch khám
- * @param {string} doctorId - ID bác sĩ
- * @param {number} serviceId - ID dịch vụ
- * @param {Date} date - Ngày hẹn
- * @param {Date} time - Giờ hẹn
- * @param {string} symptoms - Triệu chứng / mô tả
- */
-export const confirmBookingController = async (doctorId, serviceId, date, time, symptoms) => {
-  // 1️⃣ Kiểm tra triệu chứng
-  if (!symptoms?.trim()) {
-    throw new Error('⚠️ Vui lòng nhập triệu chứng hoặc mô tả tình trạng.');
-  }
+export const useBookingFlow = () => {
+  const [selectedDate, setSelectedDate] = useState("");
 
-  // 2️⃣ Kiểm tra dịch vụ
-  if (!serviceId) {
-    throw new Error('⚠️ Vui lòng chọn dịch vụ khám.');
-  }
+  const [availableDates, setAvailableDates] = useState([]);
+  const [loadingDates, setLoadingDates] = useState(false);
 
-  // 3️⃣ Lấy user hiện tại
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    throw new Error('Không tìm thấy người dùng. Vui lòng đăng nhập lại.');
-  }
+  const [specializations, setSpecializations] = useState([]);
+  const [loadingSpecs, setLoadingSpecs] = useState(false);
 
-  // 4️⃣ Chuyển date + time sang ISO string
-  const appointmentDateTime = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    time.getHours(),
-    time.getMinutes()
-  ).toISOString();
+  const [doctorsWithSlots, setDoctorsWithSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
-  // 5️⃣ Gọi service lưu vào Supabase
-  try {
-    await createBookingService({
-      doctor_id: doctorId,
-      user_id: user.id,
-      service_id: serviceId,
-      appointment_date: appointmentDateTime,
-      symptoms: symptoms.trim(),
-      status: 'pending', // mặc định
-    });
-  } catch (err) {
-    throw new Error('❌ Đặt lịch thất bại: ' + (err.message || 'Lỗi không xác định'));
-  }
+  const [bookingLoading, setBookingLoading] = useState(false);
 
-  return true; // Trả về true nếu đặt lịch thành công
+  const loadAvailableDates = useCallback(async () => {
+    if (availableDates.length > 0) return;
+    setLoadingDates(true);
+    const res = await getAvailableDates();
+    if (res.success) setAvailableDates(res.data);
+    setLoadingDates(false);
+  }, [availableDates.length]);
+
+  const loadSpecializations = useCallback(async (date) => {
+    setLoadingSpecs(true);
+    const res = await getSpecializationsByDate(date);
+    if (res.success) setSpecializations(res.data);
+    else setSpecializations([]);
+    setLoadingSpecs(false);
+  }, []);
+
+  const loadSlots = useCallback(async (date, specialization) => {
+    setLoadingSlots(true);
+    const res = await getAvailableSlots(date, specialization);
+    if (res.success) setDoctorsWithSlots(res.data);
+    else setDoctorsWithSlots([]);
+    setLoadingSlots(false);
+  }, []);
+
+  const bookAppointment = useCallback(
+    async (params) => {
+      setBookingLoading(true);
+      const res = await createAppointment(params);
+      setBookingLoading(false);
+
+      if (res.success && selectedDate) {
+        loadSlots(selectedDate, params.specialization);
+      }
+      return res;
+    },
+    [selectedDate, loadSlots]
+  );
+
+  const resetFlow = useCallback(() => {
+    setSelectedDate("");
+    setSpecializations([]);
+    setDoctorsWithSlots([]);
+  }, []);
+
+  return {
+    selectedDate,
+    setSelectedDate,
+    availableDates,
+    specializations,
+    doctorsWithSlots,
+
+    loadingDates,
+    loadingSpecs,
+    loadingSlots,
+    bookingLoading,
+
+    loadAvailableDates,
+    loadSpecializations,
+    loadSlots,
+    bookAppointment,
+    resetFlow,
+  };
 };

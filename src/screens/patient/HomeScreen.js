@@ -47,7 +47,6 @@ export default function HomeScreen() {
   }, []);
 
   const menu = [
-<<<<<<< HEAD
     {
       title: "Đặt khám",
       icon: "calendar-outline",
@@ -60,22 +59,26 @@ export default function HomeScreen() {
       screen: "MedicalRecordScreen",
     },
     { title: "Hồ sơ", icon: "person-outline", screen: "ProfileScreen" },
-    { title: "Theo dõi", icon: "heart-outline", screen: null },
-    { title: "Hỗ trợ", icon: "chatbubble-outline", screen: null },
-=======
-    { title: "Đặt khám", icon: "calendar-outline", screen: "BookingOptionsScreen" },
-    { title: "Lịch sử khám", icon: "time-outline", screen: "HistoryScreen" },
-    { title: "Bệnh án", icon: "document-text-outline", screen: "MedicalRecordScreen" },
-    { title: "Hồ sơ", icon: "person-outline", screen: "ProfileScreen" },
-    { title: "Theo dõi", icon: "heart-outline", action: () => setShowTrackingModal(true) },
+    {
+      title: "Theo dõi",
+      icon: "heart-outline",
+      action: () => setShowTrackingModal(true),
+    },
     { title: "Hỗ trợ", icon: "chatbubble-outline", screen: "SupportScreen" },
   ];
 
   const umcMenu = [
-    { title: "Hướng dẫn", icon: "help-circle-outline", screen: "CustomerGuide" },
-    { title: "Bảng giá dịch vụ", icon: "pricetag-outline", screen: "PriceList" },
+    {
+      title: "Hướng dẫn",
+      icon: "help-circle-outline",
+      screen: "CustomerGuide",
+    },
+    {
+      title: "Bảng giá dịch vụ",
+      icon: "pricetag-outline",
+      screen: "PriceList",
+    },
     { title: "Tư vấn", icon: "help-circle-outline", screen: "HelpScreen" },
->>>>>>> 9474cf5000d2483a8a60350d914d8efc4983f1a6
   ];
 
   const scales = useRef(menu.map(() => new Animated.Value(1))).current;
@@ -83,21 +86,16 @@ export default function HomeScreen() {
 
   const animatePress = (arr, index) => {
     Animated.sequence([
-<<<<<<< HEAD
-      Animated.timing(scales[index], {
+      Animated.timing(arr[index], {
         toValue: 0.95,
         duration: 100,
         useNativeDriver: true,
       }),
-      Animated.timing(scales[index], {
+      Animated.timing(arr[index], {
         toValue: 1,
         duration: 100,
         useNativeDriver: true,
       }),
-=======
-      Animated.timing(arr[index], { toValue: 0.95, duration: 100, useNativeDriver: true }),
-      Animated.timing(arr[index], { toValue: 1, duration: 100, useNativeDriver: true }),
->>>>>>> 9474cf5000d2483a8a60350d914d8efc4983f1a6
     ]).start();
   };
 
@@ -129,66 +127,6 @@ export default function HomeScreen() {
   );
 
   return (
-<<<<<<< HEAD
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 100 }}
-    >
-      {/* Header xanh dương sạch */}
-      <LinearGradient colors={["#2563EB", "#3B82F6"]} style={styles.header}>
-        <Text style={styles.greeting}>Xin chào,</Text>
-        <Text style={styles.name}>{displayName}</Text>
-        <Text style={styles.subtitle}>Chăm sóc sức khỏe của bạn hôm nay</Text>
-      </LinearGradient>
-
-      {/* Info box nhẹ nhàng */}
-      <TouchableOpacity
-        style={styles.infoBox}
-        onPress={() => navigation.navigate("HistoryScreen")}
-      >
-        <Ionicons name="notifications-outline" size={22} color="#2563EB" />
-        <Text style={styles.infoText}>Bạn có lịch khám sắp tới</Text>
-        <Ionicons name="chevron-forward" size={22} color="#2563EB" />
-      </TouchableOpacity>
-
-      {/* Grid menu – nhỏ gọn, chỉ 1 màu icon + nền trắng */}
-      <View style={styles.grid}>
-        {menu.map((item, i) => (
-          <TouchableOpacity
-            key={i}
-            style={styles.menuItem}
-            onPress={() => {
-              animatePress(i);
-              item.screen && navigation.navigate(item.screen);
-            }}
-            disabled={!item.screen}
-            activeOpacity={0.85}
-          >
-            <Animated.View
-              style={[styles.itemInner, { transform: [{ scale: scales[i] }] }]}
-            >
-              <View style={styles.iconCircle}>
-                <Ionicons name={item.icon} size={28} color="#2563EB" />
-              </View>
-              <Text style={styles.itemText}>{item.title}</Text>
-            </Animated.View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Tin tức – đơn giản, sạch */}
-      <View style={styles.newsSection}>
-        <Text style={styles.newsTitle}>Tin tức sức khỏe</Text>
-        <TouchableOpacity style={styles.newsCard}>
-          <Ionicons name="heart" size={26} color="#EF4444" />
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.newsHeadline}>
-              10 mẹo giữ sức khỏe mùa đông
-            </Text>
-            <Text style={styles.newsDate}>18/11/2025</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={22} color="#94A3B8" />
-=======
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -211,7 +149,6 @@ export default function HomeScreen() {
           <Ionicons name="notifications-outline" size={22} color="#2563EB" />
           <Text style={styles.infoText}>Bạn có lịch khám sắp tới</Text>
           <Ionicons name="chevron-forward" size={22} color="#2563EB" />
->>>>>>> 9474cf5000d2483a8a60350d914d8efc4983f1a6
         </TouchableOpacity>
 
         {/* ===== GRID MENU ===== */}
@@ -226,7 +163,12 @@ export default function HomeScreen() {
                 item.action ? item.action() : navigation.navigate(item.screen);
               }}
             >
-              <Animated.View style={[styles.itemInner, { transform: [{ scale: scales[i] }] }]}>
+              <Animated.View
+                style={[
+                  styles.itemInner,
+                  { transform: [{ scale: scales[i] }] },
+                ]}
+              >
                 <View style={styles.iconCircle}>
                   <Ionicons name={item.icon} size={28} color="#2563EB" />
                 </View>
@@ -261,7 +203,8 @@ export default function HomeScreen() {
                   style={[
                     styles.dot,
                     {
-                      backgroundColor: currentBannerIndex === i ? "#2563EB" : "#CBD5E1",
+                      backgroundColor:
+                        currentBannerIndex === i ? "#2563EB" : "#CBD5E1",
                       width: currentBannerIndex === i ? 24 : 8,
                     },
                   ]}
@@ -294,7 +237,10 @@ export default function HomeScreen() {
               }}
             >
               <Animated.View
-                style={[styles.itemInner, { transform: [{ scale: umcScales[i] }] }]}
+                style={[
+                  styles.itemInner,
+                  { transform: [{ scale: umcScales[i] }] },
+                ]}
               >
                 <View style={styles.iconCircle}>
                   <Ionicons name={item.icon} size={28} color="#2563EB" />
@@ -338,11 +284,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     flex: 1,
-<<<<<<< HEAD
-    marginLeft: 12,
-=======
     marginHorizontal: 12,
->>>>>>> 9474cf5000d2483a8a60350d914d8efc4983f1a6
     fontSize: 15,
     fontWeight: "600",
     color: "#1E293B",
@@ -387,25 +329,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-<<<<<<< HEAD
-  newsSection: { paddingHorizontal: SPACING.xl, marginTop: SPACING.xxl },
-  newsTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: SPACING.md,
-  },
-  newsCard: {
-    backgroundColor: "#FFFFFF",
-    padding: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    ...SHADOWS.card,
-  },
-  newsHeadline: { fontSize: 15, fontWeight: "600", color: "#1E293B" },
-  newsDate: { fontSize: 13, color: "#64748B", marginTop: 4 },
-=======
   /* ===== BANNER ===== */
   bannerSection: { marginTop: SPACING.xxl, paddingHorizontal: SPACING.xl },
   bannerContainer: {
@@ -432,5 +355,4 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   newsTitle: { fontSize: 22, fontWeight: "800", color: "#1E293B" },
->>>>>>> 9474cf5000d2483a8a60350d914d8efc4983f1a6
 });
